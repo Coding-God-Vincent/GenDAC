@@ -7,7 +7,7 @@ from Env.env_fixedUE import cellularEnv  # GANDDQN 環境 (不考慮使用者移
 from Env.env_movingUE import EnvMove  # LSTM 環境 (考慮使用者移動、考慮 1200 人)
 from Utils.Diffusion_utils.diffusion import Diffusion
 from Utils.Diffusion_utils.D2AC_opt import D2AC_OPT
-from Utils.Diffusion_utils.D2AC_model import GDM, DoubleCritic
+from Utils.Diffusion_utils.LD2AC_model import GDM, DoubleCritic
 from tianshou.data import Batch, ReplayBuffer, PrioritizedReplayBuffer
 from gymnasium.spaces import Discrete, Box  # In order to use BasePolicy
 from pathlib import Path
@@ -37,7 +37,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'D2AC'
-exp_name = 'exp6'
+exp_name = 'exp5'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -45,7 +45,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp6/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp4/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -105,34 +105,16 @@ def get_actions(state, total_band, model, device):
 # se : average SE of a timeslot of a complete learning window, np.array, shape (1)
 # se_weight : no
 # reward_clipping : clip the reward or not
-# return utility, reward, float (np.array with shape (1))
-# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
-#     if reward_clipping: 
-#         threshold1 = 6.5
-#         threshold2 = 4.5
-#         if utility >= threshold1: reward = 1
-#         elif utility < threshold1 and utility > threshold2: reward = 0
-#         else: reward = -1   # reward : shape ()
-#     else: reward = utility  # reward : shape (1)
-#     return utility, reward
-
-# reward : shape (), utility.shape (1)
-# se : np.int with shape (1), qoe : np.array with shape (3)
+# return utility, reward, float (np.array with shape ())
 def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se  # shape (1)
-    if qoe[1] >= 0.98 and qoe[0] >= 0.98:
-        if qoe[2] >= 0.95:
-            if se < 280:
-                reward = 4
-            else:
-                reward = 4 + (se - 280) * 0.1
-        else:
-            reward = (qoe[2] - 0.7) * 10
-    else:
-        reward = -5
-    reward = np.array([reward])
-
+    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
+    if reward_clipping: 
+        threshold1 = 6.5
+        threshold2 = 4.5
+        if utility >= threshold1: reward = 1
+        elif utility < threshold1 and utility > threshold2: reward = 0
+        else: reward = -1
+    else: reward = utility
     return utility, reward
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -315,7 +297,7 @@ for frame in tqdm(range(1, total_timesteps+1)):
     buffer.add(data)
     
     # update the model after warming up
-    if len(buffer) > batch_size * 3:
+    if len(buffer) > batch_size * 30:
         loss = d2ac_opt.update(sample_size= batch_size, buffer= buffer)
         pprint(f"loss = {loss}")
         writer.add_scalar(tag= 'loss/actor_loss', scalar_value= loss['actor_loss'].item(), global_step= frame)
@@ -388,7 +370,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp6/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp5/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -397,7 +379,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp6/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp5/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -406,7 +388,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp6/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp5/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

@@ -39,11 +39,11 @@ from torch.autograd import grad
 import torchvision.transforms as T
 from torch.utils.tensorboard import SummaryWriter
 
-from GAN_utils.ReplayMemory import ExperienceReplayMemory, PrioritizedReplayMemory
+from Utils.GAN_utils.ReplayMemory import ExperienceReplayMemory, PrioritizedReplayMemory
 # from utils.wrappers import *
-from GAN_utils.utils import initialize_weights
+from Utils.GAN_utils.utils import initialize_weights
 
-from seed import set_seed
+from Utils.seed import set_seed
 from pathlib import Path
 
 set_seed(seed= 123)

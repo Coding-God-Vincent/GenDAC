@@ -5,6 +5,9 @@ import numpy as np
 # 不然照理說確實是要一步一步的引用出來
 from tianshou.data import Batch, ReplayBuffer, to_torch
 from pathlib import Path
+from torch.distributions import Categorical
+
+
 
 
 # log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs")
@@ -36,3 +39,12 @@ from pathlib import Path
 # print(a.shape)
 # print(a.mean().shape, a.mean())
 
+# prob = torch.tensor([[0.7, 0.2, 0.1], [0.2, 0.4, 0.4]])  # shape (2, 3)
+# dice = Categorical(probs= prob)
+# print(dice.sample())
+# a = [[1, 2, 3], [4, 5, 6]]
+# a = np.vstack(a)
+# a = torch.from_numpy(a)
+# print(a)  # shape (2, 3)
+a = torch.tensor([[1]])
+print(a.squeeze(dim= 1))
