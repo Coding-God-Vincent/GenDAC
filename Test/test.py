@@ -46,5 +46,19 @@ from torch.distributions import Categorical
 # a = np.vstack(a)
 # a = torch.from_numpy(a)
 # print(a)  # shape (2, 3)
-a = torch.tensor([[1]])
-print(a.squeeze(dim= 1))
+# a = torch.tensor([[1]])
+# print(a.squeeze(dim= 1))
+# a = torch.tensor([1, 2, 3], dtype= torch.float32)
+# b = torch.tensor([0.1, 0.2, 0.5], dtype= torch.float32)
+# dists = torch.distributions.Normal(a, b)
+# a = torch.tensor([5, -5, -5], dtype= torch.float32)
+
+# print(a.softmax(dim= 0))
+
+# a = [(1, 2, 3), (4, 5, 6)]
+# x, y, z = zip(*a)
+# print(x, y, z)
+
+# a = (1, 2, 3)
+# print(np.array(a), type(np.array(a)))
+print(torch.zeros(1).item())

@@ -30,14 +30,14 @@ DDIM = False  # True if using DDIM
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 環境參數
 set_seed(seed= 123)
-fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'D2AC'
-exp_name = 'exp6'
+exp_name = 'exp2'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -106,34 +106,35 @@ def get_actions(state, total_band, model, device):
 # se_weight : no
 # reward_clipping : clip the reward or not
 # return utility, reward, float (np.array with shape (1))
-# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
-#     if reward_clipping: 
-#         threshold1 = 6.5
-#         threshold2 = 4.5
-#         if utility >= threshold1: reward = 1
-#         elif utility < threshold1 and utility > threshold2: reward = 0
-#         else: reward = -1   # reward : shape ()
-#     else: reward = utility  # reward : shape (1)
-#     return utility, reward
+def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
+    if reward_clipping: 
+        threshold1 = 6.5
+        threshold2 = 4.5
+        if utility >= threshold1: reward = 1
+        elif utility < threshold1 and utility > threshold2: reward = 0
+        else: reward = -1   # reward : shape ()
+    else: reward = utility  # reward : shape (1)
+    return utility, reward
 
+# 這種在 fixedUE 中表現跟上一種差不多，但在 movingUE 中表現差於上一種非常多
 # reward : shape (), utility.shape (1)
 # se : np.int with shape (1), qoe : np.array with shape (3)
-def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se  # shape (1)
-    if qoe[1] >= 0.98 and qoe[0] >= 0.98:
-        if qoe[2] >= 0.95:
-            if se < 280:
-                reward = 4
-            else:
-                reward = 4 + (se - 280) * 0.1
-        else:
-            reward = (qoe[2] - 0.7) * 10
-    else:
-        reward = -5
-    reward = np.array([reward])
+# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+#     if qoe[1] >= 0.98 and qoe[0] >= 0.98:
+#         if qoe[2] >= 0.95:
+#             if se[0] < 280:
+#                 reward = 4
+#             else:
+#                 reward = 4 + (se[0] - 280) * 0.1
+#         else:
+#             reward = (qoe[2] - 0.7) * 10
+#     else:
+#         reward = -5
+#     reward = np.array([reward])
 
-    return utility, reward
+#     return utility, reward
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -388,7 +389,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp6/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp2/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -397,7 +398,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp6/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp2/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -406,7 +407,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp6/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp2/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)
