@@ -1,0 +1,1 @@
+用 GANDDQN 的 reward function 跑，結果他完全秉棄 URLLC，所以 URLLC 的 QoE 只有大概 0.2

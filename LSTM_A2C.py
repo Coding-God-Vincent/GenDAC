@@ -252,7 +252,7 @@ for frame in tqdm(range(1, total_timesteps+1)):
     lstm_buffer.append(observe)
     next_state = np.vstack(lstm_buffer)  # lstm_buffer : np.array with shape (sequence_length, n_state)
     next_state = torch.from_numpy(next_state).to(device= DEVICE, dtype= torch.float32).unsqueeze(dim= 0)  # shape (1, sequence_length, n_state)
-    qoe, se = env.get_reward()  # se : np.int with shape (), qoe : np.array with shape (3)
+    qoe, se = env.get_reward()  # se : np.int with shape (1), qoe : np.array with shape (3)
     utility, reward = utils.calc__reward(qoe= qoe, se= se[0])
     v_values2 = Model.target_v(state= next_state).squeeze(dim= 1)  # (batch_size)
     td_target = reward + gamma * v_values2

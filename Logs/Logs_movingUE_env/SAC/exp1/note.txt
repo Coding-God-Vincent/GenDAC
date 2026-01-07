@@ -1,0 +1,1 @@
+使用 LSTM-A2C 的 reward function 

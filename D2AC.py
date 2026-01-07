@@ -37,7 +37,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'D2AC'
-exp_name = 'exp2'
+exp_name = 'exp3'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -45,10 +45,11 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp6/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/D2AC/exp3/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+'''State Preprocessing'''
 # state : np.array, shape (state_dim)
 # ser_cat : list, len = 3
 # return preprocessed state : np.array, shape (state_dim)
@@ -389,7 +390,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp2/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp3/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -398,7 +399,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp2/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp3/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -407,7 +408,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp2/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp3/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-import ReplayBuffer
+from .ReplayBuffer import ReplayBuffer
 
 class SAC_opt:
     
@@ -53,7 +53,7 @@ class SAC_opt:
         with torch.no_grad():
             # action : tanh(logits by actor), shape (1, action_dim)
             action, _ = self.actor.sample_action(state= state)  
-        return action.cpu().numpy()[0]  # np.array with shape (3)
+        return action.cpu()[0]  # tensor with shape (3)
 
     
     '''Update'''
