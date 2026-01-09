@@ -196,7 +196,7 @@ Critic_losses = []
 '''Training Parameters'''
 lr_actor = 0.002
 lr_critic = 0.01
-gamma = 0
+gamma = 0  # 因為環境屬於 Contextual Bandit 問題，即當前動作不會影響到其他狀態，因此沒必要考慮未來狀態，因此將 gamma = 0
 entropy_beta = 0.001
 LSTM_LEN = 3
 # 內含 1128 種組合 (每種組合也都用 list 存)

@@ -133,6 +133,9 @@ class cellularEnv(object):
         self.tx_pkt_no = np.zeros(len(self.ser_cat))
         # tx_bit_no 為每種類型的網路切片於一個 learning window 中所要傳輸的 bits 數
         self.tx_bit_no = np.zeros(len(self.ser_cat))
+        # 各 slice 因為所屬 UE 滿了所以導致 drop 掉的封包數量
+        self.drop_pkt_no = np.zeros(len(self.ser_cat))
+        
 
     #=======================================================================================================================================#
     # 通道模型 (只考慮大尺度衰弱 (考慮 path loss 和 shadow fading)) : 會得出每一個 UE 的通道狀況 (chan_loss, shape = (UE_max_no, 1))。 unit : dB
@@ -349,7 +352,22 @@ class cellularEnv(object):
 
                     self.tx_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1  # 將記錄 learning window 中總封包總數的計數器 (tx_pkt_no) + 1
                     self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]  # 產生完新封包後馬上備份 UE_buffer 到 UE_buffer_backup
-                    
+                
+                # 但會算被丟掉的封包，然後再重產生一個 readtime
+                else:  # the corresponding queue is full, don't generate packet this time, generate a new readtime, record the dropped packet
+                    if self.UE_cat[ue_id] == 'volte':
+                        self.UE_readtime[ue_id] = np.random.uniform(0, 160 * 10 ** (-3), 1).squeeze()
+                        self.tx_bit_no[0] += 40 * 8
+                    elif self.UE_cat[ue_id] == 'embb_general':
+                        self.UE_readtime[ue_id] = np.random.pareto(1.2, 1).squeeze() * 6 * 10 ** -3
+                        tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800
+                        self.tx_bit_no[1] += tmp_buffer_size
+                    else:  # urllc
+                        self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
+                        self.tx_bit_no[2] += np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])  # packet size of the dropped packet 
+                    # record the no. of the dropped packets
+                    self.drop_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1    
+
             else:  # 還沒到 readtime，扣掉 timeslot
                 self.UE_readtime[ue_id] -= self.time_subframe
         
@@ -364,6 +382,8 @@ class cellularEnv(object):
         #for ser_name in self.ser_cat:
         #    ue_index = np.where(self.UE_cat == ser_name)
         #    state[self.ser_cat.index(ser_name)] = np.where(self.UE_buffer[0,ue_index[0]] != 0)[0].size
+        
+        # 不能把丟失的封包拿一起算在狀態之中，因為實務上是做不到的，downlink 傳輸只看的到準備要傳的，看不到塞不進來的
         total_packets = self.tx_pkt_no
         total_bits = self.tx_bit_no
 
@@ -445,8 +465,8 @@ class cellularEnv(object):
         se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe)
         # ee_total = se_total/10**(self.BS_tx_power/10)   
         
-        # 2. 各網路切片整個 Learning Window 滿足 SLA 傳送成功的封包總數 / 各網路切片整個 Learning Window 的封包總數
-        qoe = self.succ_tx_pkt_no / self.tx_pkt_no 
+        # 2. 各網路切片整個 Learning Window 滿足 SLA 傳送成功的封包總數 / 各網路切片整個 Learning Window 的封包總數 (含被 drop 掉的 packet)
+        qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)
         
         return qoe, se
 
@@ -490,17 +510,22 @@ class cellularEnv(object):
     #=======================================================================================================================================#   
     # 在每個 Learning window 結束後重置計數器      
     def countReset(self):
+        # 一個 Learning window 中來的封包總數
         self.tx_pkt_no = np.zeros(len(self.ser_cat))
-        '''for ser_name in self.ser_cat:
-            ser_index = self.ser_cat.index(ser_name)
-            ue_index_ = np.where(self.UE_cat == ser_name)
-            self.tx_pkt_no[ser_index] = np.where(self.UE_buffer[:,ue_index_]!=0)[0].size'''
-        self.succ_tx_pkt_no = np.zeros(len(self.ser_cat))
-        self.sys_se_per_frame = np.zeros(1)  
-        self.UE_buffer = np.zeros(self.UE_buffer.shape)
-        self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
-        self.UE_latency = np.zeros(self.UE_buffer.shape)
+        # 一個 learning window 中來的 bits 總數
         self.tx_bit_no = np.zeros(len(self.ser_cat))
+        # 一個 learning window 中滿足 SLA 要求所成功傳出去的封包總數
+        self.succ_tx_pkt_no = np.zeros(len(self.ser_cat))
+        # 當前 timeslot 整個系統的總 SE
+        self.sys_se_per_frame = np.zeros(1)  
+        # 各切片因為其 UE 所屬的 buffer 滿而導致被丟掉的 packet
+        self.drop_pkt_no = np.zeros(len(self.ser_cat))
+        # 待傳送給各 UE 的封包的 Queue & Latency 的計算
+        # **這不應該在每一個 learning window 的最後全部重置，否則問題會變成 contextual bandit
+        # self.UE_buffer = np.zeros(self.UE_buffer.shape)
+        # self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
+        # self.UE_latency = np.zeros(self.UE_buffer.shape)
+        
           
 #=======================================================================================================================================#
 # 模擬封包傳輸給 ue_id 的 UE 的過程 : 所有封包共用 rate，從 index0 的開始傳

@@ -26,7 +26,7 @@ class D2AC_OPT(BasePolicy):
         critic_optim : torch.optim.Optimizer,
         device : torch.device,
         tau : float = 0.005,  # soft_update param.
-        gamma : float = 1.0,
+        gamma : float = 0.0,  # 因為我的問題屬於 Contextual Bandit 問題，即當前決策只與當前狀態有關，跟下一個狀態都無關，故 Greedy 為最佳策略，gamma 應該要設為 0
         reward_normalization : bool = False,
         n_steps : int = 1,  # use n_step return as Target
         lr_decay : bool = False,

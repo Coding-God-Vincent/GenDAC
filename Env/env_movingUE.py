@@ -399,7 +399,9 @@ class EnvMove(object):
     #=======================================================================================================================================#
     # Generate the pending packets & no. of UEs in the coverage area of each NS in the current timeslot
     def get_state(self):
-        pkt = self.tx_pkt_no + self.drop_pkt_no
+        # pkt = self.tx_pkt_no + self.drop_pkt_no
+        # 實務上是看不到 dropped packets 數量的，所以只回傳抵達的 packets 個數
+        pkt = self.tx_pkt_no
         dis = np.array([self.volte_dis, self.embb_dis, self.urllc_dis])
         total_bits = self.tx_bit_no
         return pkt, total_bits
@@ -533,9 +535,9 @@ class EnvMove(object):
             self.tx_pkt_no[ser_index] = np.where(self.UE_buffer[:,ue_index_]!=0)[0].size'''
         self.succ_tx_pkt_no = np.zeros(len(self.ser_cat))
         self.sys_se_per_frame = np.zeros(1)
-        self.UE_buffer = np.zeros(self.UE_buffer.shape)
-        self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
-        self.UE_latency = np.zeros(self.UE_buffer.shape)
+        # self.UE_buffer = np.zeros(self.UE_buffer.shape)
+        # self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
+        # self.UE_latency = np.zeros(self.UE_buffer.shape)
 
 #=======================================================================================================================================#
 # simulate the packet transmission from BS to UE with ue_id, starts from index0 in each queue

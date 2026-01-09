@@ -47,7 +47,7 @@ from Utils.seed import set_seed
 from pathlib import Path
 
 set_seed(seed= 123)
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
@@ -55,7 +55,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'GANDDQN'
-exp_name = 'exp1'
+exp_name = 'exp4'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -63,7 +63,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/GANDDQN/exp1/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GANDDQN/exp4/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #=============================================================================================================================================#
@@ -590,23 +590,24 @@ def calc_reward(qoe, se, threshold):
     utility = np.matmul(qoe_weight, qoe.reshape((3, 1))) + se_weight * se 
     
     # # 這演算法的 threshold 是會隨時間而單調上升的，故要限制 threshold
-    # threshold = 3.5 + 1.5 * frame / (total_timesteps / 1.5)
-    # if threshold > 5.5:
-    #     threshold = 5.5
+    threshold = 3.5 + 3.5 * frame / (total_timesteps / 1.25)  # 想讓他在 6800 episodes 時就要求她要到 6.5
+    if threshold > 6.5:
+        threshold = 6.5
 
-    # # reward clipping
-    # if utility < threshold:
-    #     reward = 0
-    # else:
-    #     reward = 1
+    # reward clipping
+    if utility < threshold:
+        reward = 0
+    else:
+        reward = 1
+    return utility, reward
 
     # 照論文參數設定 (URLLC 小封包)
-    threshold1 = 6.5
-    threshold2 = 4.5
-    if utility >= threshold1: reward = 1
-    elif utility < threshold1 and utility > threshold2: reward = 0
-    else: reward = -1
-    return utility, reward
+    # threshold1 = 6  # 雖然論文中設 6.5，但失敗了，設一個小一點的看看
+    # threshold2 = 4.5
+    # if utility >= threshold1: reward = 1
+    # elif utility < threshold1 and utility > threshold2: reward = 0
+    # else: reward = -1
+    # return utility, reward
 
 #=============================================================================================================================================#
 # WGAN-GP 的 Generator (G_model) 選擇動作 by ɛ-greedy
@@ -767,7 +768,7 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     env.activity()
     
     
-    print(f'\nGANDDQN=====episode: {frame}, epsilon: {epsilon:.3f}, utility: {utility}, reward: {reward:.5f}')
+    print(f'\n\nepisode: {frame}, epsilon: {epsilon:.3f}, utility: {utility}, reward: {reward:.5f}')
     print(f'qoe: volte = {qoe[0]}, video = {qoe[1]}, urllc = {qoe[2]}')
     print('bandwidth-allocation solution', action_space[action])
 
@@ -800,10 +801,6 @@ qoe_urllc = [u for (v, e, u) in QoE]
 utilities = utilities[1: ]  # 去除第一筆
 utilities_ = [u.item() for u in utilities]
 
-# SE 長度 10000 的 list
-
-
-
 #%%
 # show figures of each metrics
 
@@ -815,7 +812,7 @@ ma_utility = moving_average(utilities_, window_size = 200)
 
 # loss figure (figure(2))
 model.plot_loss()
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp1/loss.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp4/loss.png")
 
 # qoe figure (figure(3))
 plt.figure(3)
@@ -827,7 +824,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp1/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp4/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -836,7 +833,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp1/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp4/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -845,7 +842,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp1/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp4/Utility.png")
 
 print("Graph Saved")
 # %%
