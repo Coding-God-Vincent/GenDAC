@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''環境參數'''
-fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== fixed_UE_env ==================================================\n")
 else: print("\n================================================== Moving_UE_env ==================================================\n")
 
@@ -45,7 +45,7 @@ band_per = 0.2  # Granularitiy (unit : MHz)
 total_timesteps = 10000
 dl_mimo = 64
 learning_windows = 2000
-UE_no = 100 if fixed_UE else 1200
+UE_no = 100 if fixed_UE else 300
 if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= 64, UE_max_no= UE_no) 
 else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo)
 
@@ -122,7 +122,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing/exp2/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp2/QoE.png")
 
 # se figure (figure(4))
 plt.figure(1)
@@ -131,7 +131,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing/exp2/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp2/SE.png")
 
 # utility figure (figure(5))
 plt.figure(2)
@@ -140,4 +140,4 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing/exp2/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp2/Utility.png")

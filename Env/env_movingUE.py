@@ -19,6 +19,8 @@
     * 整個範圍 : 以 BS 為中心，半徑 3R 的圓
     * 可能一開始不在 Coverage Area 之內，但下一刻可能會進來，故有使用一個 UE_cell 來維護目前在 Coverage Area 內的 ue_id
 
+* 為了加速運算並維持原論文設定的 loading，把 total Area (正方形) 的邊設為 1.5 radius，人數改為 300
+
 '''
 
 import numpy as np
@@ -32,7 +34,7 @@ class EnvMove(object):
                  BS_radius = 40,  # Area Size = circle with radius 40
                  # BS_tx_power = 0, # unit is dBW
                  BS_tx_power = 16,  # unit is dBW, 46dBm
-                 UE_max_no = 1000,    
+                 UE_max_no = 300,  # 原論文 1200
                  Queue_max = 5,
                  noise_PSD = -204,  # -174 dbm/Hz
                  chan_mod = '36814',  # channel model : 3GPP TR 36.814 (including Path Loss & Shadow Fading)
@@ -49,6 +51,7 @@ class EnvMove(object):
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
         self.BS_radius = BS_radius
+        self.edge = 1.5  # edge of the total area = 3 times of radius of the BS covarage area (原論文 3)
         self.band_whole = band_whole
         self.chan_mod = chan_mod
         self.carrier_freq = carrier_freq
@@ -81,7 +84,7 @@ class EnvMove(object):
         self.UE_cat = np.random.choice(self.ser_cat, self.UE_max_no, p = self.ser_prob)  # TBD
 
         # params of UE mobility model
-        self.UE_pos = np.random.uniform(-3 * self.BS_radius, 3 * self.BS_radius, [self.UE_max_no, 2])  # pos = ([-3R ~ 3R], [-3R ~ 3R])
+        self.UE_pos = np.random.uniform(-self.edge * self.BS_radius, self.edge * self.BS_radius, [self.UE_max_no, 2])  # pos = ([-3R ~ 3R], [-3R ~ 3R])
         # UE_cell : boolean array, indicating whether the UE is located in the BS coverage area
         # In every time unit we only consider the user which its cell = 1
         # if UE is moving into the BS coverage area, we can reconsider the resource allocation of this UE by maintaining this array
@@ -129,31 +132,31 @@ class EnvMove(object):
         # bounces back by the same amount it went out
         
         # Situation1 : Out of the left boundary (x < -3R)
-        UE_index = np.where(self.UE_pos[:, 0] < -3 * self.BS_radius)  # find the ue_ids of UEs that there x are < -3R
+        UE_index = np.where(self.UE_pos[:, 0] < -self.edge * self.BS_radius)  # find the ue_ids of UEs that there x are < -3R
         # set the bounce back x position
         # ex. UE_x = -3.2R, the reflect UE_x is -6R-(-3.2R) = -2.8R
-        self.UE_pos[UE_index, 0] = -6 * self.BS_radius - self.UE_pos[UE_index, 0]  
+        self.UE_pos[UE_index, 0] = -2*self.edge * self.BS_radius - self.UE_pos[UE_index, 0]  
         self.UE_direction[UE_index] = 180 - self.UE_direction[UE_index]  # set the direction (horizontal reflection)
         # make sure the direction is in the range of [-180° ~ 180°]
         UE_index = np.where(self.UE_direction >= 180)
         self.UE_direction[UE_index] -= 360
         
         # Situation2 : Out of the right boundary (x >= 3R)
-        UE_index = np.where(self.UE_pos[:, 0] >= 3 * self.BS_radius)  # find the ue_ids of UEs that there x are >= 3R
-        self.UE_pos[UE_index, 0] = 6 * self.BS_radius - self.UE_pos[UE_index, 0]  # set the bounce back x position
+        UE_index = np.where(self.UE_pos[:, 0] >= self.edge * self.BS_radius)  # find the ue_ids of UEs that there x are >= 3R
+        self.UE_pos[UE_index, 0] = 2*self.edge * self.BS_radius - self.UE_pos[UE_index, 0]  # set the bounce back x position
         self.UE_direction[UE_index] = 180 - self.UE_direction[UE_index]  # set the direction (horizontal reflection)
         # make sure the direction is in the range of [-180° ~ 180°]
         UE_index = np.where(self.UE_direction >= 180)
         self.UE_direction[UE_index] -= 360
         
         # Situation3 : Out of the bottom boundary (y < -3R)
-        UE_index = np.where(self.UE_pos[:, 1] < -3 * self.BS_radius)  # find the ue_ids of UEs that there y are < -3R
-        self.UE_pos[UE_index, 1] = -6 * self.BS_radius - self.UE_pos[UE_index, 1]  # set the bounce back y position
+        UE_index = np.where(self.UE_pos[:, 1] < -self.edge * self.BS_radius)  # find the ue_ids of UEs that there y are < -3R
+        self.UE_pos[UE_index, 1] = -2*self.edge * self.BS_radius - self.UE_pos[UE_index, 1]  # set the bounce back y position
         self.UE_direction[UE_index] = -self.UE_direction[UE_index]  # set the direction (horizontal reflection)
 
         # Situation4 : Out of the top boundary (y > 3R)
-        UE_index = np.where(self.UE_pos[:, 1] >= 3 * self.BS_radius)  # find the ue_ids of UEs that there y are >= 3R
-        self.UE_pos[UE_index, 1] = 6 * self.BS_radius - self.UE_pos[UE_index, 1]  # set the bounce back y position
+        UE_index = np.where(self.UE_pos[:, 1] >= self.edge * self.BS_radius)  # find the ue_ids of UEs that there y are >= 3R
+        self.UE_pos[UE_index, 1] = 2*self.edge * self.BS_radius - self.UE_pos[UE_index, 1]  # set the bounce back y position
         self.UE_direction[UE_index] = -self.UE_direction[UE_index]  # set the direction (horizontal reflection)
 
         # update self.UE_cell
@@ -524,7 +527,7 @@ class EnvMove(object):
     #=======================================================================================================================================#
     def countReset(self):
         self.sys_clock = 0
-        self.UE_readtime = np.ones(self.UE_max_no)
+        # self.UE_readtime = np.ones(self.UE_max_no)
         self.tx_pkt_no = np.zeros(len(self.ser_cat))
         self.tx_bit_no = np.zeros(len(self.ser_cat))
         self.drop_pkt_no = np.zeros(len(self.ser_cat))

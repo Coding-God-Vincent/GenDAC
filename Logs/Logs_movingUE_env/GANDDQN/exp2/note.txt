@@ -1,0 +1,3 @@
+MDP 的 Moving UE Env
+UE_no = 300
+正方形邊長為 1.5 R (原始是 3 R)

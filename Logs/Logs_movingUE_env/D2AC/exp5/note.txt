@@ -1,0 +1,2 @@
+使用 1 step 去躁有可能陷入 Local Optimal，用 5 步試看看。
+MDP 環境，UE_no = 300、正方形邊長 1.5 R

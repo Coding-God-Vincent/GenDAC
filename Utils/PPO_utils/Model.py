@@ -1,19 +1,37 @@
 import torch
 import torch.nn as nn
+import numpy as np
+
+
+def layer_init(layer, std= np.sqrt(2), bias_const= 0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
 
 '''Actor'''
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, hidden_dim= 256):
         super().__init__()
+        # self.middle = nn.Sequential(
+        #     nn.Linear(in_features= state_dim, out_features= hidden_dim),
+        #     nn.Mish(),
+        #     nn.Linear(in_features= hidden_dim, out_features= hidden_dim),
+        #     nn.Mish()
+        # )
+        # self.mean_layer = nn.Linear(in_features= hidden_dim, out_features= action_dim)
+        # # 跟 SAC 一樣，輸出 log_std，後面會用 exp() 取出，以此來保持恆正
+        # self.log_std_layer = nn.Linear(in_features= hidden_dim, out_features= action_dim)
+
+        # 使用 Orthogonal init
         self.middle = nn.Sequential(
-            nn.Linear(in_features= state_dim, out_features= hidden_dim),
+            layer_init(nn.Linear(state_dim, hidden_dim)),
             nn.Mish(),
-            nn.Linear(in_features= hidden_dim, out_features= hidden_dim),
+            layer_init(nn.Linear(hidden_dim, hidden_dim)),
             nn.Mish()
         )
-        self.mean_layer = nn.Linear(in_features= hidden_dim, out_features= action_dim)
-        # 跟 SAC 一樣，輸出 log_std，後面會用 exp() 取出，以此來保持恆正
-        self.log_std_layer = nn.Linear(in_features= hidden_dim, out_features= action_dim)
+        self.mean_layer = layer_init(nn.Linear(hidden_dim, action_dim), std= 0.01)
+        self.log_std_layer = layer_init(nn.Linear(hidden_dim, action_dim), std= 0.01)
         
     
     # state : shape (batch_size, state_dim)
@@ -59,7 +77,7 @@ class Actor(nn.Module):
     '''
     # state : shape (batch_size, state_dim)
     # action : 這是舊策略做的 action，會用在取出該 action 在當前策略的 log_probs。shape (batch_size, action_dim)
-    # current_log_prob : current_prob(a_t|s_t), shape (batch_size, action_dim)
+    # current_log_prob : current_prob(a_t|s_t), shape (batch_size, 1)
     # entropy : 當前策略的 Entropy, shape (batch_size, 1)
     def evaluate(self, state, action):
         '''得出 curren_prob'''
@@ -86,14 +104,21 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim, hidden_dim= 256):
         super().__init__()
-        self.critic = nn.Sequential(
-            nn.Linear(in_features= state_dim, out_features= hidden_dim),
-            nn.Mish(),
-            nn.Linear(in_features= hidden_dim, out_features= hidden_dim),
-            nn.Mish(),
-            nn.Linear(in_features= hidden_dim, out_features= 1)
-        )
+        # self.critic = nn.Sequential(
+        #     nn.Linear(in_features= state_dim, out_features= hidden_dim),
+        #     nn.Mish(),
+        #     nn.Linear(in_features= hidden_dim, out_features= hidden_dim),
+        #     nn.Mish(),
+        #     nn.Linear(in_features= hidden_dim, out_features= 1)
+        # )
     
+        self.critic = nn.Sequential(
+            layer_init(nn.Linear(state_dim, hidden_dim)),
+            nn.Mish(),
+            layer_init(nn.Linear(hidden_dim, hidden_dim)),
+            nn.Mish(),
+            layer_init(nn.Linear(hidden_dim, 1), std=1.0) # Value output std=1.0
+        )
 
     # state : (batch_size, state_dim)
     # output : (batch_size, 1)
