@@ -135,6 +135,9 @@ class cellularEnv(object):
         self.tx_bit_no = np.zeros(len(self.ser_cat))
         # 各 slice 因為所屬 UE 滿了所以導致 drop 掉的封包數量
         self.drop_pkt_no = np.zeros(len(self.ser_cat))
+
+        # 每一個 window 結束時，用來統計各網路切片所屬的 UE 的 buffer 的 packets 數，想看一下本篇的 loading 重不重
+        self.pending_packets = np.zeros(len(self.ser_cat))  # np.array with shape (3)
         
 
     #=======================================================================================================================================#
@@ -272,7 +275,8 @@ class cellularEnv(object):
         
         # 更新各 UE 中的 buffer，一次考慮一個 UE
         for ue_id in UE_index[0]: 
-            self.UE_buffer[:, ue_id] = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)  
+            self.UE_buffer[:, ue_id], transmitted_packets = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)  
+            self.pending_packets[self.ser_cat.index(self.UE_cat[ue_id])] -= transmitted_packets
         
         # 算出當前 reward 並與前面的 (同 Learning Window) 的累加
         self.store_reward(rate)
@@ -352,6 +356,7 @@ class cellularEnv(object):
 
                     self.tx_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1  # 將記錄 learning window 中總封包總數的計數器 (tx_pkt_no) + 1
                     self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]  # 產生完新封包後馬上備份 UE_buffer 到 UE_buffer_backup
+                    self.pending_packets[self.ser_cat.index(self.UE_cat[ue_id])] += 1  # 該 UE 所屬的網路切片的待傳封包數 + 1
                 
                 # 但會算被丟掉的封包，然後再重產生一個 readtime
                 else:  # the corresponding queue is full, don't generate packet this time, generate a new readtime, record the dropped packet
@@ -426,33 +431,33 @@ class cellularEnv(object):
                     if self.UE_cat[ue_id] == 'volte': 
                         cat_index = self.ser_cat.index('volte')  # 該網路切片的 index 
                         if (self.UE_latency[i, ue_id] == self.time_subframe):  # 封包只用一個 timeslot 就傳完
-                            if (rate[ue_id] >= 51 * 10 ** 3) & (self.UE_latency[i, ue_id] < 10 * 10 **(-3) - handling_latency): 
+                            if (rate[ue_id] >= 51 * 10 ** 3) & (self.UE_latency[i, ue_id] <= 10 * 10 **(-3) - handling_latency): 
                                 self.succ_tx_pkt_no[cat_index] += 1  # succ_tx_pkt_n[i] : 網路切片 i 成功傳出的封包總數
                         else:  # 封包用不只一個 timeslot 才傳完
                             # buffer_backup 為一開始 UE_buffer.copy，記錄著封包的初始大小
                             # 由封包原始大小 / latency (即傳輸的時間) 得到該封包的資料傳輸速率
-                            if (self.UE_buffer_backup[i,ue_id] / self.UE_latency[i, ue_id] >= 51 * 10 ** 3) & (self.UE_latency[i, ue_id] < 10 * 10 **(-3) - handling_latency):
+                            if (self.UE_buffer_backup[i,ue_id] / self.UE_latency[i, ue_id] >= 51 * 10 ** 3) & (self.UE_latency[i, ue_id] <= 10 * 10 **(-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                     
                     # 屬於 eMBB_general 網路切片，SLA : rate >= 100Mbps、latency < 10ms
                     elif self.UE_cat[ue_id] == 'embb_general':
                         cat_index = self.ser_cat.index('embb_general')    
                         if (self.UE_latency[i, ue_id] == self.time_subframe):  # 封包只用一個 timeslot 就傳完
-                            if (rate[ue_id] >= 100 * 10 ** 6) & (self.UE_latency[i, ue_id] < 10 * 10 **(-3) - handling_latency):
+                            if (rate[ue_id] >= 100 * 10 ** 6) & (self.UE_latency[i, ue_id] <= 10 * 10 **(-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                         else: # 封包用不只一個 timeslot 才傳完
                             # rate 的部分 : 該封包的大小
-                            if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 100 * 10 ** 6) & (self.UE_latency[i, ue_id] < 10 * 10 **(-3) - handling_latency):
+                            if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 100 * 10 ** 6) & (self.UE_latency[i, ue_id] <= 10 * 10 **(-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                     
                     # 屬於 uRLLC 網路切片，SLA : rate >= 10Mbps、latency < 1ms
                     elif self.UE_cat[ue_id] == 'urllc': 
                         cat_index = self.ser_cat.index('urllc')   
                         if (self.UE_latency[i, ue_id] == self.time_subframe):  # 封包只用一個 timeslot 就傳完
-                            if (rate[ue_id] >= 10 * 10 ** 6) & (self.UE_latency[i, ue_id] < 1 * 10 **(-3) - handling_latency):
+                            if (rate[ue_id] >= 10 * 10 ** 6) & (self.UE_latency[i, ue_id] <= 1 * 10 **(-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                         else:  # 封包用不只一個 timeslot 才傳完
-                            if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 10 * 10 ** 6) & (self.UE_latency[i, ue_id] < 1 * 10 **(-3) - handling_latency):
+                            if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 10 * 10 ** 6) & (self.UE_latency[i, ue_id] <= 1 * 10 **(-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
 
     #=======================================================================================================================================#
@@ -467,6 +472,7 @@ class cellularEnv(object):
         
         # 2. 各網路切片整個 Learning Window 滿足 SLA 傳送成功的封包總數 / 各網路切片整個 Learning Window 的封包總數 (含被 drop 掉的 packet)
         qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)
+        qoe = np.clip(qoe, 0., 1.)  # 有些 packets 上一個 buffer 沒有傳完留到下一個 buffer 才傳掉，effort 會被記在下一個 window 中
         
         return qoe, se
 
@@ -546,17 +552,21 @@ class cellularEnv(object):
 
 # 我認為正確的版本
 def bufferUpdate(buffer, rate, time_subframe):
+    transmitted_packets = 0
     bSize = buffer.size
     remaining_transmit_bits = rate * time_subframe  # unit : bits
     for i in range(bSize):
-        if buffer[i] >= remaining_transmit_bits:
+        # 不夠傳一個封包
+        if buffer[i] > remaining_transmit_bits:
             buffer[i] -= remaining_transmit_bits
             remaining_transmit_bits = 0
             break
-        else:
+        elif buffer[i] > 0:  # 夠傳掉一個封包
             remaining_transmit_bits -= buffer[i]
             buffer[i] = 0
-    return buffer
+            transmitted_packets += 1
+
+    return buffer, transmitted_packets
             
 #=======================================================================================================================================#
 # 更新對應於 ue_id 的 UE 的 Queue 中的五格封包的 Latency，即各封包的 latency 加上一個 timeslot (0.5ms)

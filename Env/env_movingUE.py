@@ -102,6 +102,7 @@ class EnvMove(object):
         
         self.tx_pkt_no = np.zeros(len(self.ser_cat))  # packets pending transmission in the current learning window
         self.tx_bit_no = np.zeros(len(self.ser_cat))  # bits pending transmision in the current learning window
+        self.pending_packets = np.zeros(len(self.ser_cat))  # 用來記錄每一個 window 開始時各網路切片待傳的封包數有多少 (所屬 UE 的 buffer 中的封包數總和)
 
     #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
@@ -446,11 +447,11 @@ class EnvMove(object):
                         cat_index = self.ser_cat.index('volte')
                         if (self.UE_latency[i, ue_id] == self.time_subframe):  # take 1 timeslot to do the transmission
                             if (rate[ue_id] >= 51 * 10 ** 3) & (
-                                    self.UE_latency[i, ue_id] < 10 * 10 ** (-3) - handling_latency):
+                                    self.UE_latency[i, ue_id] <= 10 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                         else:  # take more than 1 timeslot
                             if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 51 * 10 ** 3) & (
-                                    self.UE_latency[i, ue_id] < 10 * 10 ** (-3) - handling_latency):
+                                    self.UE_latency[i, ue_id] <= 10 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                     # case2 : embb_general SLA -> rate >= 100Mbs、latency < 10ms
                     elif self.UE_cat[ue_id] == 'embb_general':
@@ -458,22 +459,22 @@ class EnvMove(object):
                         if (self.UE_latency[i, ue_id] == self.time_subframe):  # take 1 timeslot to do the transmission
                             # if (rate[ue_id] >= 5 * 10 ** 6) & (self.UE_latency[i,ue_id] < 10 * 10 **(-3) - handling_latency):
                             if (rate[ue_id] >= 100 * 10 ** 6) & (
-                                    self.UE_latency[i, ue_id] < 10 * 10 ** (-3) - handling_latency):
+                                    self.UE_latency[i, ue_id] <= 10 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                         else:  # take more than 1 timeslot
                             if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 100 * 10 ** 6) & (
-                                    self.UE_latency[i, ue_id] < 10 * 10 ** (-3) - handling_latency):
+                                    self.UE_latency[i, ue_id] <= 10 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                     # case3 : urllc SLA -> rate >= 10Mbs、latency < 1ms
                     elif self.UE_cat[ue_id] == 'urllc':
                         cat_index = self.ser_cat.index('urllc')
                         if (self.UE_latency[i, ue_id] == self.time_subframe):  # take 1 timeslot to do the transmission
                             if (rate[ue_id] >= 10 * 10 ** 6) & (
-                                    self.UE_latency[i, ue_id] < 1 * 10 ** (-3) - handling_latency):
+                                    self.UE_latency[i, ue_id] <= 1 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
                         else: # take more than 1 timeslot
                             if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 10 * 10 ** 6) & (
-                                    self.UE_latency[i, ue_id] < 1 * 10 ** (-3) - handling_latency):
+                                    self.UE_latency[i, ue_id] <= 1 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
 
     #=======================================================================================================================================#
@@ -483,6 +484,7 @@ class EnvMove(object):
         # ee_total = se_total/10**(self.BS_tx_power/10)
         self.tx_pkt_no[np.where(self.tx_pkt_no == 0)] += 1
         qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)  # qoe of each NS in the current window
+        qoe = np.clip(qoe, 0.0, 1.0)
         return qoe, se_total
 
     #=======================================================================================================================================#

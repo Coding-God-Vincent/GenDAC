@@ -1,0 +1,2 @@
+把 reward 改為原本的 objective function。看能不能跟以前一樣快速收斂。
+環境同 exp7，是在修改 SSR 的 latency 標準 (小於改成小於等於) 後的環境
