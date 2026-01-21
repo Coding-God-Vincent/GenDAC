@@ -30,14 +30,14 @@ DDIM = False  # True if using DDIM
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 環境參數
 set_seed(seed= 123)
-fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'D2AC'
-exp_name = 'exp14'
+exp_name = 'exp7'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -45,7 +45,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp14/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/D2AC/exp7/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -107,16 +107,16 @@ def get_actions(state, total_band, model, device):
 # se_weight : no
 # reward_clipping : clip the reward or not
 # return utility, reward, float (np.array with shape (1))
-def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
-    if reward_clipping: 
-        threshold1 = 6.5
-        threshold2 = 4.5
-        if utility >= threshold1: reward = 1
-        elif utility < threshold1 and utility > threshold2: reward = 0
-        else: reward = -1   # reward : shape ()
-    else: reward = utility  # reward : shape (1)
-    return utility, reward
+# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
+#     if reward_clipping: 
+#         threshold1 = 6.5
+#         threshold2 = 4.5
+#         if utility >= threshold1: reward = 1
+#         elif utility < threshold1 and utility > threshold2: reward = 0
+#         else: reward = -1   # reward : shape ()
+#     else: reward = utility  # reward : shape (1)
+#     return utility, reward
 
 # LSTM-A2C 的 reward
 # 這種在 fixedUE 中表現跟上一種差不多，但在 movingUE 中表現差於上一種非常多
@@ -141,20 +141,20 @@ def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
 # 自創 reward function
 # reward : shape (1), utility.shape (1)
 # se : np.int with shape (1), qoe : np.array with shape (3)
-# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-#     standard = 0.98  # standard for embb & volte
-#     standard2 = 0.95  # standard for urllc
-#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
-#     if qoe[1] >= standard and qoe[0] >= standard:
-#         if qoe[2] >= standard:
-#             reward = utility[0] / 10  # 會介於 0~1
-#         else:
-#             reward = (qoe[2] - standard2)  # -0~-0.95
-#     else:
-#         reward = -1  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
-#     reward = np.array([reward])
+def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+    standard = 0.98  # standard for embb & volte
+    standard2 = 0.95  # standard for urllc
+    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+    if qoe[1] >= standard and qoe[0] >= standard:
+        if qoe[2] >= standard:
+            reward = utility[0] / 10  # 會介於 0~1
+        else:
+            reward = (qoe[2] - standard2)  # -0~-0.95
+    else:
+        reward = -1  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+    reward = np.array([reward])
 
-#     return utility, reward
+    return utility, reward
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -175,7 +175,7 @@ state_dim = len(ser_cat)
 action_dim = len(ser_cat)
 max_action = 1
 beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
-denoise_step = 1  # 6
+denoise_step = 5  # 6
 actor_lr = 0.001
 critic_lr = 0.001
 weight_decay = 0
@@ -308,15 +308,21 @@ for frame in tqdm(range(1, total_timesteps+1)):
         env.scheduling()  # do lower-level allocation every timeslots
         env.provisioning()  # evaluate the SE & SSR of the current timeslot
         env.activity()  # assign readtime & generate packet according to the readtime
+        
 
     # calculate the reward of the current learning window
+    # qoe : np.array with shape (3)
+    # se : np.array with shape (1)
     qoe, se = env.get_reward()
+
+    # calculate the individual se of each network slices of the current learning window
+    # indivifual_se : np.array with shape (3)
+    # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
+    individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
+
     # use qoe & se to calculate utility as a reward
     # utility = \alpha * SE + (\betas * SSRs).sum()
     utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, reward_clipping= False)
-
-
-    # print(f"qoe = {qoe}, se = {se}, utility = {utility}, reward = {reward}")
 
     # Record the values of the current learning window
     QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
@@ -346,27 +352,32 @@ for frame in tqdm(range(1, total_timesteps+1)):
     # Actor_losses.append(loss['actor_loss'].item())
     # Critic_losses.append(loss['critic_loss'].item())
 
-
     # print the outcome of the current learning window
     print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}")
-    # print(f"QoEs = {QoEs}, SEs = {SEs}, Rewards = {Rewards}, Utilities = {Utilities}")
     
-    writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0] / 10**7, global_step= frame)  # 分配比例
-    writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1] / 10**7, global_step= frame)
-    writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2] / 10**7, global_step= frame)
+    writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
+    writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+    writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
+    writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
+    writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0], global_step= frame)  # 分配比例
+    writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1], global_step= frame)
+    writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2], global_step= frame)
     writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
     writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
     writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
     writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
     writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
     writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
-    writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-    writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
-    writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
     writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
     writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
     writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
     writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
     writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
     writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
     
@@ -378,9 +389,6 @@ for frame in tqdm(range(1, total_timesteps+1)):
 
     # if using the env of LSTM-A2C then move the users
     if not fixed_UE: env.user_move()
-
-    # start next learning window (start to generate new packet)
-    env.activity()
 
 metric_dict = {}
 writer.add_hparams(hparam_dict= hparams_dict, metric_dict= metric_dict)
@@ -418,7 +426,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp14/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp7/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -427,7 +435,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp14/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp7/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -436,7 +444,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp14/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp7/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

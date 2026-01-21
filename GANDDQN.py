@@ -48,7 +48,7 @@ from pathlib import Path
 
 # set_seed(seed= 123)
 set_seed(seed= 321)
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
@@ -56,7 +56,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'GANDDQN'
-exp_name = 'exp2'
+exp_name = 'exp6'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -64,7 +64,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GANDDQN/exp2/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GANDDQN/exp6/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #=============================================================================================================================================#
@@ -694,6 +694,7 @@ num_actions = len(action_space)
 # num_input = state_size = 3。一個 state 是由三個數字組成 (三種網路切片每秒要傳送的封包個數)，num_actions = 36
 model = WGAN_GP_Agent(static_policy = False, num_input = 3, num_actions = num_actions)
 G_noise = (torch.rand(1, model.num_samples)).to(device)
+observation_packets, observation_bits = env.get_state()
 observation = state_update(env.tx_pkt_no, env.ser_cat)  # 進行狀態前處理
 # print(f"obeservation shape : {observation.shape}")
 
@@ -736,21 +737,45 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     threshold = 3.5 + 1.5 * frame / (total_timesteps / 1.5)  # threshold -> 當前 learning window 模型預計要達到的標準 (隨時間單調上升)，達到才有 reward = 1
     utility, reward = calc_reward(qoe, se, threshold)  # 根據 threshold 算出當前 learning window 得到的 reward
     
+    # calculate the individual se of each network slices of the current learning window
+    # indivifual_se : np.array with shape (3)
+    # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
+    individual_se, urllc_perfect, urllc_tolerable, urllc_fail = env.eval_get_obs()
+    
     # 紀錄相關結果
     QoE.append(qoe.tolist())
     SE.append(se[0])
     rewards.append(reward)
     utilities.append(utility)
 
+    writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+    writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
+    writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
+    writer.add_scalar(tag= 'action/volte', scalar_value= env.band_ser_cat[0], global_step= frame)  # 分配比例
+    writer.add_scalar(tag= 'action/embb_general', scalar_value= env.band_ser_cat[1], global_step= frame)
+    writer.add_scalar(tag= 'action/urllc', scalar_value= env.band_ser_cat[2], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
     writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
     writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
     writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
     writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
     writer.add_scalar(tag= 'reward', scalar_value= reward, global_step= frame)
-    writer.add_scalar(tag= 'utility', scalar_value= utility, global_step= frame)
+    writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
 
     # 準備做下一次的上層，取出 state
     # 該 state 為上一個 learning window 中，各網路切片欲傳輸的封包總數
+    observation_packets, observation_bits = env.get_state()
     observation = state_update(env.tx_pkt_no, env.ser_cat)
     
     # 將 experience 存入 replay buffer
@@ -764,9 +789,6 @@ for frame in tqdm(range(1, total_timesteps + 1)):
 
     # if using the env of LSTM-A2C then move the users
     if not fixed_UE: env.user_move()
-
-    # 設定各 UE readtime，並根據該 readtime 決定是否新增封包
-    env.activity()
     
     
     print(f'\n\nepisode: {frame}, epsilon: {epsilon:.3f}, utility: {utility}, reward: {reward:.5f}')

@@ -10,7 +10,7 @@ def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
         if qoe[2] >= standard:
             reward = utility[0] / 10  # 會介於 0~1
         else:
-            reward = (qoe[2] - standard)  # -0~-0.95
+            reward = (qoe[2] - standard)  # -0~-0.98
     else:
         reward = -1  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
     reward = np.array([reward])
@@ -19,3 +19,5 @@ def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
 
 多紀錄一個每一個 window 分配後各網路切片未傳的封包數。
 把 SLA 計算改對。論文上是寫 <=，原實作中是 <。
+
+使用的 denoise step = 1

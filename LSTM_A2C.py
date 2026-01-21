@@ -21,7 +21,7 @@ import torch
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''環境參數'''
 set_seed(seed= 123)
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== fixed_UE_env ==================================================\n")
 else: print("\n================================================== Moving_UE_env ==================================================\n")
 
@@ -36,7 +36,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/LSTM_A2C/exp3/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/LSTM_A2C/exp3/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -235,7 +235,6 @@ for frame in tqdm(range(1, total_timesteps+1)):
     print(f"\n\n******Episode {frame} :")
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()
-    env.activity()  # 所有 UE 開始根據其所屬的網路切片開始產生封包
     state = np.vstack(lstm_buffer)  # lstm_buffer : np.array with shape (sequence_length (LSTM_LEN), n_state)
     state = torch.from_numpy(state).to(device= DEVICE, dtype= torch.float32).unsqueeze(dim= 0)  # shape (1, sequence_length, n_state)
     action = Model.choose_action(state= state)  # int
@@ -258,6 +257,11 @@ for frame in tqdm(range(1, total_timesteps+1)):
     td_target = reward + gamma * v_values2
     loss = Model.learn(state= state, action= torch.tensor(action, dtype= torch.long, device= DEVICE), td_target= td_target)
 
+    # calculate the individual se of each network slices of the current learning window
+    # indivifual_se : np.array with shape (3)
+    # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
+    individual_se, urllc_perfect, urllc_tolerable, urllc_fail = env.eval_get_obs()
+
     # print the outcome of the current learning window
     print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward):.3f}, utility = {float(utility):.3f}, loss = {loss:.3f}")
 
@@ -273,6 +277,24 @@ for frame in tqdm(range(1, total_timesteps+1)):
     writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
     writer.add_scalar(tag= 'reward', scalar_value= reward, global_step= frame)
     writer.add_scalar(tag= 'utility', scalar_value= utility, global_step= frame)
+    writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
+    writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+    writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
+    writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
+    writer.add_scalar(tag= 'action/volte', scalar_value= action_space[action][0], global_step= frame)  # 分配比例
+    writer.add_scalar(tag= 'action/embb_general', scalar_value= action_space[action][1], global_step= frame)
+    writer.add_scalar(tag= 'action/urllc', scalar_value= action_space[action][2], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
 
 
 
@@ -306,7 +328,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/LSTM_A2C/exp3/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp3/QoE.png")
 
 # se figure (figure(4))
 plt.figure(1)
@@ -315,7 +337,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/LSTM_A2C/exp3/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp3/SE.png")
 
 # utility figure (figure(5))
 plt.figure(2)
@@ -324,7 +346,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/LSTM_A2C/exp3/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp3/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

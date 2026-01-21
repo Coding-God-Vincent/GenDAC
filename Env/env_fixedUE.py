@@ -18,7 +18,7 @@ class cellularEnv(object):
     def __init__(self,
                  
         # Base Station Position & Area
-        BS_pos = np.array([0,0]),
+        BS_pos = np.array([0, 0]),
         BS_radius = 40,
         
         # BS transmit power # tx = transmit
@@ -54,9 +54,9 @@ class cellularEnv(object):
         schedu_method = 'round_robin',
         
         # 網路切片種類 (VoLTE、eMBB、URLLC)
-        ser_cat = ['volte','embb_general','urllc'],
+        ser_cat = ['volte', 'embb_general', 'urllc'],
         # 隨機分配 UE 的服務需求 (VoLTE : eMBB : URLLC = 6 : 6 : 1)
-        ser_prob = np.array([6,6,1], dtype=np.float32),
+        ser_prob = np.array([6, 6, 1], dtype=np.float32),
 
         # MIMO 天線數
         dl_mimo = 32,
@@ -135,9 +135,22 @@ class cellularEnv(object):
         self.tx_bit_no = np.zeros(len(self.ser_cat))
         # 各 slice 因為所屬 UE 滿了所以導致 drop 掉的封包數量
         self.drop_pkt_no = np.zeros(len(self.ser_cat))
+        
+        # 用以紀錄沒有需求的 slot，以計算出公平的 SE，畢竟沒有需求怎麼能算人家 Efficiency 低
+        self.idle_frame = 0
 
+        '''觀測用數值'''
         # 每一個 window 結束時，用來統計各網路切片所屬的 UE 的 buffer 的 packets 數，想看一下本篇的 loading 重不重
         self.pending_packets = np.zeros(len(self.ser_cat))  # np.array with shape (3)
+        # 統計各 window 中，平均一個 slot 各網路切片所能達到的 SE，為了要算分配給各網路切片的資源能提供多少 bits 的傳輸
+        self.individual_se = np.zeros(len(self.ser_cat))  # np.array with shape (3)
+        # 以下三個變數是對每一個 window 為單位，故每一個 window 都會重置
+        # 在 0.5ms (含)內就傳完的 urllc 封包個數
+        self.urllc_perfect = 0
+        # 在 1ms (含)內就傳完的 urllc 封包個數
+        self.urllc_tolerable = 0
+        # > 1ms 還沒傳完的 urllc 封包個數
+        self.urllc_fail = 0
         
 
     #=======================================================================================================================================#
@@ -148,7 +161,7 @@ class cellularEnv(object):
             # path_loss.shape = (UE_max_no, 1)，為每一個 UE 會有的 path_loss
             # 後面的 random.normal(...) 會產生出一個 (UE_max_no) 的 np.ndarray，內容為各 UE 的 shadow fading 值
             # 最後 reshape() 會將 shape 從 (UE_max_no) 轉成 (UE_max_no, 1)
-            self.chan_loss = self.path_loss + np.random.normal(0, shadowing_var, self.UE_max_no).reshape(-1,1)  
+            self.chan_loss = self.path_loss + np.random.normal(0, shadowing_var, self.UE_max_no).reshape(-1, 1)  
 
     #=======================================================================================================================================#
     # 排程模型 : 網路切片分 RB 給其 UE，下面所說的兩種分法是分配在均分給 Active Users 後剩餘的 RB
@@ -275,8 +288,16 @@ class cellularEnv(object):
         
         # 更新各 UE 中的 buffer，一次考慮一個 UE
         for ue_id in UE_index[0]: 
-            self.UE_buffer[:, ue_id], transmitted_packets = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)  
+            self.UE_buffer[:, ue_id], transmitted_packets, transmitted_packets_indices = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)  
             self.pending_packets[self.ser_cat.index(self.UE_cat[ue_id])] -= transmitted_packets
+            
+            # 對 URLLC 通過的封包分等級並記錄個數
+            # self.UE_cat : np.array with shape (UE_max_no)
+            if self.UE_cat[ue_id] == 'urllc':
+                for packet_index in transmitted_packets_indices:
+                    if self.UE_latency[packet_index, ue_id] <= 1 * self.time_subframe: self.urllc_perfect += 1
+                    elif self.UE_latency[packet_index, ue_id] <= 2 * self.time_subframe: self.urllc_tolerable += 1
+                    else: self.urllc_fail += 1
         
         # 算出當前 reward 並與前面的 (同 Learning Window) 的累加
         self.store_reward(rate)
@@ -398,6 +419,7 @@ class cellularEnv(object):
     # 一個 Learning Window 中每一個 timeslot 都會執行
     # 計算當前 timeslot 的系統總 SE & EE & SSR，並與之前的 (同一個 Learning Window) 累加
     # 到當前 Learning Window 的最後一個 timeslot 時會有整個 Learning Window 的總 SE & EE & SSR
+    # rate : 所有 UE 於當前 time slot 能達到的資料傳輸速率。np.array with shape (UE_max_no)
     def store_reward(self, rate):
         
         # 計算各網路切片的 SE & EE & 總系統的 SE & EE
@@ -415,8 +437,12 @@ class cellularEnv(object):
                 ee[ser_index] = se[ser_index] / 10**(self.BS_tx_power / 10)  # 計算該網路切片的 EE
         
         # 計算當前 timeslot 整個系統 (所有種類的網路切片總和) 的 SE & EE
-        # 此外，累加之前的 (同一個 Learning window 的)
+        # self.sys_se_per_frame : 累加所有網路切片於當前 timeslot 的平均 SE (float)，最後會是當前 learning window 所有網路切片的平均 SE
         self.sys_se_per_frame += sys_rate_frame / self.band_whole
+        # self.individual_se : 累加各網路切片於當前 timeslot 的平均 SE，最後會是當前 learning window 各網路切片的平均 SE
+        self.individual_se  += se  # np.array with shape (3)
+
+        if sys_rate_frame == 0: self.idle_frame += 1
 
         # 原本應該是要處理計算 latency 時的延遲
         handling_latency = 2 * 10 ** (-3)
@@ -467,14 +493,26 @@ class cellularEnv(object):
 
         # 1. 當前 Learning Window 中，平均一個 timeslot 的 SE
         # 整個 Learning Window 各 timeslots 的總 SE 總和 / 一個 Learning Windows 的 timeslots 總數
-        se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe)
+        se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)
         # ee_total = se_total/10**(self.BS_tx_power/10)   
         
         # 2. 各網路切片整個 Learning Window 滿足 SLA 傳送成功的封包總數 / 各網路切片整個 Learning Window 的封包總數 (含被 drop 掉的 packet)
         qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)
         qoe = np.clip(qoe, 0., 1.)  # 有些 packets 上一個 buffer 沒有傳完留到下一個 buffer 才傳掉，effort 會被記在下一個 window 中
+
         
         return qoe, se
+    
+    #=======================================================================================================================================#
+    '''回傳觀測用的值'''
+    # individual_se : 當前 Learning window，各網路切片平均一個 timeslot 的 SE
+    # self.urllc_perfect, tolerable, fail : 當前 learning window 中 urllc 的封包中的通過等級個數
+    def eval_get_obs(self):
+        
+        # (觀察用) 當前 Learning window，各網路切片平均一個 timeslot 的 SE
+        individual_se = self.individual_se / (self.learning_windows / self.time_subframe - self.idle_frame)
+
+        return individual_se, self.urllc_perfect, self.urllc_tolerable, self.urllc_fail, self.idle_frame
 
     #=======================================================================================================================================#
     # 於每個 timeslot 結束後依照 UE_buffer 清理 UE_buffer_backup & UE_latency
@@ -522,10 +560,19 @@ class cellularEnv(object):
         self.tx_bit_no = np.zeros(len(self.ser_cat))
         # 一個 learning window 中滿足 SLA 要求所成功傳出去的封包總數
         self.succ_tx_pkt_no = np.zeros(len(self.ser_cat))
-        # 當前 timeslot 整個系統的總 SE
+        # 當前 learning window 整個系統的總 SE
         self.sys_se_per_frame = np.zeros(1)  
+        # 當前 learning window 各網路切片的總 SE
+        self.individual_se = np.zeros(len(self.ser_cat))
         # 各切片因為其 UE 所屬的 buffer 滿而導致被丟掉的 packet
         self.drop_pkt_no = np.zeros(len(self.ser_cat))
+        # 每一個 learning window 中 urllc 封包通過的等級個數
+        self.urllc_perfect = 0
+        self.urllc_tolerable = 0
+        self.urllc_fail = 0
+        # 每個 window 中沒有需求的 slot 個數
+        self.idle_frame = 0
+
         # 待傳送給各 UE 的封包的 Queue & Latency 的計算
         # **這不應該在每一個 learning window 的最後全部重置，否則問題會變成 contextual bandit
         # self.UE_buffer = np.zeros(self.UE_buffer.shape)
@@ -537,6 +584,8 @@ class cellularEnv(object):
 # 模擬封包傳輸給 ue_id 的 UE 的過程 : 所有封包共用 rate，從 index0 的開始傳
 # buffer -> UE_buffer[:, ue_id] : ue_id 的 UE 對應的 Queue 的那五格中的封包大小
 # rate -> ue_id 的 UE 的資料傳輸速率
+
+# 原版
 # def bufferUpdate(buffer, rate, time_subframe):  
 #     bSize = buffer.size  # Queue 中的封包個數
 #     for i in range(bSize):
@@ -552,6 +601,7 @@ class cellularEnv(object):
 
 # 我認為正確的版本
 def bufferUpdate(buffer, rate, time_subframe):
+    transmitted_packets_indices = []
     transmitted_packets = 0
     bSize = buffer.size
     remaining_transmit_bits = rate * time_subframe  # unit : bits
@@ -565,8 +615,9 @@ def bufferUpdate(buffer, rate, time_subframe):
             remaining_transmit_bits -= buffer[i]
             buffer[i] = 0
             transmitted_packets += 1
+            transmitted_packets_indices.append(i)
 
-    return buffer, transmitted_packets
+    return buffer, transmitted_packets, transmitted_packets_indices
             
 #=======================================================================================================================================#
 # 更新對應於 ue_id 的 UE 的 Queue 中的五格封包的 Latency，即各封包的 latency 加上一個 timeslot (0.5ms)

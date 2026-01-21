@@ -1,0 +1,23 @@
+exp7 中使用自創的 reward function 發現 URLLC 會比直接使用 Objective function 還要好 (趨近於 1)，但需要更多的步數才收斂。
+因為 exp9 中用 3 步效果還不錯，所以試看看 5 步。
+
+# 自創 reward function
+# reward : shape (1), utility.shape (1)
+# se : np.int with shape (1), qoe : np.array with shape (3)
+def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+    standard = 0.98  # standard for embb & volte
+    standard2 = 0.95  # standard for urllc
+    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+    if qoe[1] >= standard and qoe[0] >= standard:
+        if qoe[2] >= standard:
+            reward = utility[0] / 10  # 會介於 0~1
+        else:
+            reward = (qoe[2] - standard2)  # -0~-0.95
+    else:
+        reward = -1  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+    reward = np.array([reward])
+
+    return utility, reward
+
+
+    

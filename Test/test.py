@@ -61,4 +61,7 @@ from torch.distributions import Categorical
 
 # a = (1, 2, 3)
 # print(np.array(a), type(np.array(a)))
-print(torch.zeros(1).item())
+# print(torch.zeros(1).item())
+
+a = [1, 2, 3, 4, 5]
+print(a[0:3])

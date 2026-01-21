@@ -102,7 +102,19 @@ class EnvMove(object):
         
         self.tx_pkt_no = np.zeros(len(self.ser_cat))  # packets pending transmission in the current learning window
         self.tx_bit_no = np.zeros(len(self.ser_cat))  # bits pending transmision in the current learning window
-        self.pending_packets = np.zeros(len(self.ser_cat))  # 用來記錄每一個 window 開始時各網路切片待傳的封包數有多少 (所屬 UE 的 buffer 中的封包數總和)
+        
+        '''觀測用數值'''
+        # 每一個 window 結束時，用來統計各網路切片所屬的 UE 的 buffer 的 packets 數，想看一下本篇的 loading 重不重
+        self.pending_packets = np.zeros(len(self.ser_cat))  # np.array with shape (3)
+        # 統計各 window 中，平均一個 slot 各網路切片所能達到的 SE，為了要算分配給各網路切片的資源能提供多少 bits 的傳輸
+        self.individual_se = np.zeros(len(self.ser_cat))  # np.array with shape (3)
+        # 以下三個變數是對每一個 window 為單位，故每一個 window 都會重置
+        # 在 0.5ms (含)內就傳完的 urllc 封包個數
+        self.urllc_perfect = 0
+        # 在 1ms (含)內就傳完的 urllc 封包個數
+        self.urllc_tolerable = 0
+        # > 1ms 還沒傳完的 urllc 封包個數
+        self.urllc_fail = 0
 
     #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
@@ -293,7 +305,16 @@ class EnvMove(object):
         self.UE_latency[np.where(self.UE_buffer != 0)] += self.time_subframe
         # do the packet transmission 
         for ue_id in UE_index[0]:
-            self.UE_buffer[:, ue_id] = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)
+            self.UE_buffer[:, ue_id], transmitted_packets, transmitted_packets_indices = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)
+            self.pending_packets[self.ser_cat.index(self.UE_cat[ue_id])] -= transmitted_packets
+            # 對 URLLC 通過的封包分等級並記錄個數
+            # self.UE_cat : np.array with shape (UE_max_no)
+            if self.UE_cat[ue_id] == 'urllc':
+                for packet_index in transmitted_packets_indices:
+                    if self.UE_latency[packet_index, ue_id] <= 1 * self.time_subframe: self.urllc_perfect += 1
+                    elif self.UE_latency[packet_index, ue_id] <= 2 * self.time_subframe: self.urllc_tolerable += 1
+                    else: self.urllc_fail += 1
+
         # calculate the reward of the current timeslot
         self.store_reward(rate)
         # update UE_buffer & UE_latency
@@ -380,6 +401,7 @@ class EnvMove(object):
                 self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]
                 # record the no. of the packets
                 self.tx_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1
+                self.pending_packets[self.ser_cat.index(self.UE_cat[ue_id])] += 1  # 該 UE 所屬的網路切片的待傳封包數 + 1
 
             else:  # the corresponding queue is full, don't generate packet this time, generate a new readtime
                 if self.UE_cat[ue_id] == 'volte':
@@ -426,8 +448,10 @@ class EnvMove(object):
                 se[ser_index] = sum_rate / allo_band  # SE in the current timeslot of the considering NS
                 ee[ser_index] = se[ser_index] / 10 ** (self.BS_tx_power / 10)  # EE in the current timeslot of the considering NS
         self.sys_se_per_frame += sys_rate_frame / self.band_whole  # SE of the system in the current timeslot
+        # self.individual_se : 累加各網路切片於當前 timeslot 的平均 SE，最後會是當前 learning window 各網路切片的平均 SE
+        self.individual_se  += se  # np.array with shape (3)
 
-        # no idle situation in this paper
+        # no demanding packets in the current slot
         if sys_rate_frame == 0:
             self.idle_frame += 1
         
@@ -488,6 +512,17 @@ class EnvMove(object):
         return qoe, se_total
 
     #=======================================================================================================================================#
+    '''回傳觀測用的值'''
+    # individual_se : 當前 Learning window，各網路切片平均一個 timeslot 的 SE
+    # self.urllc_perfect, tolerable, fail : 當前 learning window 中 urllc 的封包中的通過等級個數
+    def eval_get_obs(self):
+        
+        # (觀察用) 當前 Learning window，各網路切片平均一個 timeslot 的 SE
+        individual_se = self.individual_se / (self.learning_windows / self.time_subframe - self.idle_frame)
+
+        return individual_se, self.urllc_perfect, self.urllc_tolerable, self.urllc_fail, self.idle_frame
+
+    #=======================================================================================================================================#
     # update the UE_buffer & UE_latency after each timeslot
     # packets which haven't completely sent will resume there transmissions in the next timeslot 
     # packets which finish there transmission will be clean by setting UE_buffer[finish_packet_index] = 0 & UE_latency[finish_packet_index] = 0
@@ -528,7 +563,7 @@ class EnvMove(object):
 
     #=======================================================================================================================================#
     def countReset(self):
-        self.sys_clock = 0
+        # self.sys_clock = 0
         # self.UE_readtime = np.ones(self.UE_max_no)
         self.tx_pkt_no = np.zeros(len(self.ser_cat))
         self.tx_bit_no = np.zeros(len(self.ser_cat))
@@ -540,6 +575,12 @@ class EnvMove(object):
             self.tx_pkt_no[ser_index] = np.where(self.UE_buffer[:,ue_index_]!=0)[0].size'''
         self.succ_tx_pkt_no = np.zeros(len(self.ser_cat))
         self.sys_se_per_frame = np.zeros(1)
+        # 當前 learning window 各網路切片的總 SE
+        self.individual_se = np.zeros(len(self.ser_cat))
+        # 每一個 learning window 中 urllc 封包通過的等級個數
+        self.urllc_perfect = 0
+        self.urllc_tolerable = 0
+        self.urllc_fail = 0
         # self.UE_buffer = np.zeros(self.UE_buffer.shape)
         # self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
         # self.UE_latency = np.zeros(self.UE_buffer.shape)
@@ -549,6 +590,8 @@ class EnvMove(object):
 # buffer -> UE_buffer[:, ue_id] : packet size of each of the 5 packets in the queue corresponding to the UE with ue_id
 # rate -> data transmissio rate of UE with ue_id
 def bufferUpdate(buffer, rate, time_subframe):
+    transmitted_packets = 0
+    transmitted_packets_indices = []
     bSize = buffer.size
     for i in range(bSize):
         if buffer[i] >= rate * time_subframe:
@@ -558,7 +601,9 @@ def bufferUpdate(buffer, rate, time_subframe):
         else:
             rate -= buffer[i] / time_subframe
             buffer[i] = 0
-    return buffer
+            transmitted_packets += 1
+            transmitted_packets_indices.append(i)
+    return buffer, transmitted_packets, transmitted_packets_indices
 
 #=======================================================================================================================================#
 # update the latency of the packets in the queue corresponding to the UE with ue_id by adding 0.5ms (one timeslot) to the packets

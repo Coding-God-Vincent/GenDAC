@@ -10,14 +10,14 @@ from tqdm.auto import tqdm
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''環境參數'''
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== fixed_UE_env ==================================================\n")
 else: print("\n================================================== Moving_UE_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定圖片 / log 路徑'''
 algo_name = 'Hard_Slicing'
-exp_name = 'exp2'
+exp_name = 'exp3'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -25,7 +25,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/Hard_Slicing/exp1/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/Hard_Slicing/exp3/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -61,11 +61,15 @@ Critic_losses = []
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Training'''
+
+env.countReset()  # reset 所有計數器
+if not fixed_UE: env.user_move()
+env.activity()  # 所有 UE 開始根據其所屬的網路切片開始產生封包
+observation_packets, observation_bits = env.get_state()
+
 for frame in tqdm(range(1, total_timesteps+1)):
     print(f"\n\n******Episode {frame} :")
-    env.countReset()  # reset 所有計數器
-    if not fixed_UE: env.user_move()
-    env.activity()  # 所有 UE 開始根據其所屬的網路切片開始產生封包
+    
     action = [total_band/3 * 10**6, total_band/3 * 10**6, total_band/3 * 10**6]  # 平均分給三個網路切片
     env.band_ser_cat = action
     # lower level
@@ -76,6 +80,10 @@ for frame in tqdm(range(1, total_timesteps+1)):
 
     qoe, se = env.get_reward()  # se : np.int with shape (), qoe : np.array with shape (3)
     utility, reward = calc__reward(qoe= qoe, se= se[0])
+    # calculate the individual se of each network slices of the current learning window
+    # indivifual_se : np.array with shape (3)
+    # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
+    individual_se, urllc_perfect, urllc_tolerable, urllc_fail = env.eval_get_obs()
 
     # print the outcome of the current learning window
     print(f"qoe = {qoe}, se = {float(se[0]):.3f}, utility = {float(utility):.3f}")
@@ -85,12 +93,34 @@ for frame in tqdm(range(1, total_timesteps+1)):
     Utilities.append(utility.item())
 
     '''record on tensorboard'''
+    writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+    writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
+    writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
+    writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
+    writer.add_scalar(tag= 'action/volte', scalar_value= action[0], global_step= frame)  # 分配比例
+    writer.add_scalar(tag= 'action/embb_general', scalar_value= action[1], global_step= frame)
+    writer.add_scalar(tag= 'action/urllc', scalar_value= action[2], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
+    writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
+    writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
     writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
     writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
     writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
     writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
+    writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
     writer.add_scalar(tag= 'utility', scalar_value= utility, global_step= frame)
 
+    observation_packets, observation_bits = env.get_state()
+    
+    env.countReset()  # reset 所有計數器
+    if not fixed_UE: env.user_move()
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Generate Outcome Figures'''
@@ -122,7 +152,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp2/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing/exp3/QoE.png")
 
 # se figure (figure(4))
 plt.figure(1)
@@ -131,7 +161,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp2/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing/exp3/SE.png")
 
 # utility figure (figure(5))
 plt.figure(2)
@@ -140,4 +170,4 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp2/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing/exp3/Utility.png")
