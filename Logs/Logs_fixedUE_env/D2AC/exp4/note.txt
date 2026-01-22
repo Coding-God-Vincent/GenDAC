@@ -1,3 +1,0 @@
-* using DDIM in diffusion
-* denoise step = 2
-* GANDDQN env (fixedUE_env)

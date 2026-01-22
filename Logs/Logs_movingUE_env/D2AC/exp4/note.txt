@@ -1,1 +1,0 @@
-因為本篇環境屬於 Contextual Bandit，因此應該要把 gamma 設為 0。前面的實驗都把 gamma 設為 1。改回 0 應該會比較好。

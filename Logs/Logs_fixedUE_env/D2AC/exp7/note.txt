@@ -1,1 +1,0 @@
-只 warm up batch_size*3 次而已。

@@ -1,3 +1,0 @@
-在 MDP 環境中跑一次。
-因為是 MDP 了，所以 gamma 設為 0.99，n-step = 3。
-denoise step = 1

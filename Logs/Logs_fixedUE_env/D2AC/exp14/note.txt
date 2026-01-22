@@ -1,3 +1,0 @@
-改正 SSR 計算之後 (< 改成 <=)，用原本的 reward function (objective function) 再跑一次
-此外，多紀錄了每個 learning window 各網路切片平均的 SE (individual se)，為了要看資源分配是否貼合需求 (observation bits)
-此外，刪掉最後的 env.activity()，那是還沒改為 MDP 前的餘孽，現在改為 MDP 了，所有 env.activity() 都在下層做了
