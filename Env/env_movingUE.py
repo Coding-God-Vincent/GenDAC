@@ -300,7 +300,7 @@ class EnvMove(object):
         rx_power = rx_power.reshape(1, -1)[0]  # output_shape change from (UE_max_no, 1) to (1, UE_max_no) and extract the (UE_max_no) part by [0]
         # calculate the data transmission rate of each user according to Shannon Theory
         rate = np.zeros(self.UE_max_no)  # unit : bit/s
-        rate[UE_index] = self.UE_band[UE_index] * np.log10(1 + rx_power[UE_index] / (10 ** (self.noise_PSD / 10) * self.UE_band[UE_index])) * self.dl_mimo
+        rate[UE_index] = self.UE_band[UE_index] * np.log2(1 + rx_power[UE_index] / (10 ** (self.noise_PSD / 10) * self.UE_band[UE_index])) * self.dl_mimo
         # update the latency of each non-zero packet (add 0.5ms)
         self.UE_latency[np.where(self.UE_buffer != 0)] += self.time_subframe
         # do the packet transmission 
@@ -397,6 +397,7 @@ class EnvMove(object):
                     # generate a new readtime
                     # read time is determines much smaller; the spec shows the average time is 180s, but here it is defined as 180 ms
                     self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
+                
                 # update the backup buffer
                 self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]
                 # record the no. of the packets
@@ -406,14 +407,10 @@ class EnvMove(object):
             else:  # the corresponding queue is full, don't generate packet this time, generate a new readtime
                 if self.UE_cat[ue_id] == 'volte':
                     self.UE_readtime[ue_id] = np.random.uniform(0, 160 * 10 ** (-3), 1).squeeze()
-                    self.tx_bit_no[0] += 40 * 8
                 elif self.UE_cat[ue_id] == 'embb_general':
                     self.UE_readtime[ue_id] = np.random.pareto(1.2, 1).squeeze() * 6 * 10 ** -3
-                    tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800
-                    self.tx_bit_no[1] += tmp_buffer_size
                 else:  # urllc
                     self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
-                    self.tx_bit_no[2] += np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])  # packet size of the dropped packet 
                 # record the no. of the dropped packets
                 self.drop_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1
 

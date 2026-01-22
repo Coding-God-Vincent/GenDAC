@@ -68,8 +68,10 @@ class cellularEnv(object):
         # 可以得出一次訓練會要 60000 * 0.5ms = 30s
         # 在論文實驗設定中將 learning windows 設為 2000，由此，每 2000 * 0.5ms = 1s 會更新一次
         learning_windows = 60000,
-    ):
 
+        hard_scenario = False
+    ):
+    
         self.BS_tx_power = BS_tx_power
         self.BS_radius = BS_radius
         
@@ -138,6 +140,8 @@ class cellularEnv(object):
         
         # 用以紀錄沒有需求的 slot，以計算出公平的 SE，畢竟沒有需求怎麼能算人家 Efficiency 低
         self.idle_frame = 0
+
+        self.hard_scenario = hard_scenario
 
         '''觀測用數值'''
         # 每一個 window 結束時，用來統計各網路切片所屬的 UE 的 buffer 的 packets 數，想看一下本篇的 loading 重不重
@@ -264,7 +268,7 @@ class cellularEnv(object):
         # rate (bits / s) = bandwidth (unit : 次數/s) * log (1 + SNR) (unit : bits / 次數)
         # 最後乘上天線數量是一種理想情況的近似方法，為簡化建模。
         # 下述 Shannon 單位轉換見 Hackmd
-        rate[UE_index] = self.UE_band[UE_index] * np.log10(1 + rx_power[UE_index] / ( 10 **(self.noise_PSD / 10) * self.UE_band[UE_index] )) * self.dl_mimo
+        rate[UE_index] = self.UE_band[UE_index] * np.log2(1 + rx_power[UE_index] / ( 10 **(self.noise_PSD / 10) * self.UE_band[UE_index] )) * self.dl_mimo
         
         # 找出有哪些 UE 是封包的傳送目的地
         # ex : 
@@ -333,7 +337,9 @@ class cellularEnv(object):
                 elif ser_name == 'urllc':
                     # read time is determines much smaller; the spec shows the average time is 180s, but here it is defined as 180 ms
                     # 模擬突發封包
-                    self.UE_readtime[ue_index]  = np.random.exponential(180* 10 ** -3, [1, ue_index_Size]) 
+                    if self.hard_scenario == False:
+                        self.UE_readtime[ue_index]  = np.random.exponential(180* 10 ** -3, [1, ue_index_Size]).squeeze()
+                    else: self.UE_readtime[ue_index]  = np.random.exponential(10* 10 ** -3, [1, ue_index_Size]).squeeze()  # Exponential Distribution with Mean = 10ms
 
         # 針對每個 UE 看是否要產生新的封包，封包大小的單位為 bits
         for ue_id in range(self.UE_max_no):  # 每次考慮一個 UE
@@ -347,13 +353,15 @@ class cellularEnv(object):
                     if self.UE_cat[ue_id] == 'volte':
                         self.UE_buffer[buf_ind, ue_id] = 40 * 8  # 產生一個大小為 40Byte 的封包放到剛剛的找到的空位
                         self.tx_bit_no[0] += 40 * 8  # 紀錄該封包的 bits 數到 volte 欄位
-                        self.UE_readtime[ue_id] = np.random.uniform(0,160 * 10 ** (-3), 1).squeeze()  # 每次產生完封包之後都會再隨機產生 readtime
+                        self.UE_readtime[ue_id] = np.random.uniform(0, 160 * 10 ** (-3), 1).squeeze()  # 每次產生完封包之後都會再隨機產生 readtime
 
                     elif self.UE_cat[ue_id] == 'embb_general':
                         # squeeze() is used to unpack [no] to no
-                        tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800  # 產生 800 bits 為 base 的 Pareto 分布的封包大小
-                        if tmp_buffer_size > 2000:  # 封包大小至多 2000 bits，超過就改成 2000 bits
-                            tmp_buffer_size = 2000
+                        if self.hard_scenario == False:
+                            tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800  # 產生 800 bits 為 base 的 Pareto 分布的封包大小
+                            if tmp_buffer_size > 2000:  # 封包大小至多 2000 bits，超過就改成 2000 bits
+                                tmp_buffer_size = 2000
+                        else: tmp_buffer_size = np.random.choice([0.256*10**6, 0.4096*10**6, 0.512*10**6, 0.576*10**6])
                         # tmp_buffer_size = np.random.choice([1*8*10**6, 2*8*10**6, 3*8*10**6, 4*8*10**6, 5*8*10**6])
                         self.UE_buffer[buf_ind, ue_id] = tmp_buffer_size
                         self.tx_bit_no[1] += tmp_buffer_size
@@ -369,11 +377,13 @@ class cellularEnv(object):
                         # 小封包
                         tmp_buffer_size = np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])  # {6.4, 12.8, 19.2, 25.6, 32} KB 
                         # 大封包
-                        # tmp_buffer_size = np.random.choice([0.3*8*10**6, 0.4*8*10**6, 0.5*8*10**6, 0.6*8*10**6, 0.7*8*10**6])  # buffer_size 介於 0.3 ~ 0.7M bits
+                        # tmp_buffer_size = np.random.choice([0.3*8*10**6, 0.4*8*10**6, 0.5*8*10**6, 0.6*8*10**6, 0.7*8*10**6])  # buffer_size 介於 0.3 ~ 0.7M Bytes
                         self.UE_buffer[buf_ind,ue_id] = tmp_buffer_size
                         self.tx_bit_no[2] += tmp_buffer_size
                         # 再產生一個 readtime
-                        self.UE_readtime[ue_id]  = np.random.exponential(180* 10 ** -3, 1).squeeze()
+                        if self.hard_scenario == False:
+                            self.UE_readtime[ue_id]  = np.random.exponential(180* 10 ** -3, 1).squeeze()
+                        else: self.UE_readtime[ue_id]  = np.random.exponential(10* 10 ** -3, 1).squeeze()  # Exponential Distribution with Mean = 10ms
 
                     self.tx_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1  # 將記錄 learning window 中總封包總數的計數器 (tx_pkt_no) + 1
                     self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]  # 產生完新封包後馬上備份 UE_buffer 到 UE_buffer_backup
@@ -383,14 +393,12 @@ class cellularEnv(object):
                 else:  # the corresponding queue is full, don't generate packet this time, generate a new readtime, record the dropped packet
                     if self.UE_cat[ue_id] == 'volte':
                         self.UE_readtime[ue_id] = np.random.uniform(0, 160 * 10 ** (-3), 1).squeeze()
-                        self.tx_bit_no[0] += 40 * 8
                     elif self.UE_cat[ue_id] == 'embb_general':
                         self.UE_readtime[ue_id] = np.random.pareto(1.2, 1).squeeze() * 6 * 10 ** -3
-                        tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800
-                        self.tx_bit_no[1] += tmp_buffer_size
                     else:  # urllc
-                        self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
-                        self.tx_bit_no[2] += np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])  # packet size of the dropped packet 
+                        if self.hard_scenario == False:
+                            self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
+                        else: self.UE_readtime[ue_id] = np.random.exponential(10 * 10 ** -3, 1).squeeze()
                     # record the no. of the dropped packets
                     self.drop_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1    
 
@@ -493,8 +501,10 @@ class cellularEnv(object):
 
         # 1. 當前 Learning Window 中，平均一個 timeslot 的 SE
         # 整個 Learning Window 各 timeslots 的總 SE 總和 / 一個 Learning Windows 的 timeslots 總數
-        se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)
+        # if (self.learning_windows / self.time_subframe - self.idle_frame) == 0: se = 0.0
+        # else: se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)
         # ee_total = se_total/10**(self.BS_tx_power/10)   
+        se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe)  # 維持原論文的設定，不考慮 idle frame
         
         # 2. 各網路切片整個 Learning Window 滿足 SLA 傳送成功的封包總數 / 各網路切片整個 Learning Window 的封包總數 (含被 drop 掉的 packet)
         qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)
@@ -510,7 +520,8 @@ class cellularEnv(object):
     def eval_get_obs(self):
         
         # (觀察用) 當前 Learning window，各網路切片平均一個 timeslot 的 SE
-        individual_se = self.individual_se / (self.learning_windows / self.time_subframe - self.idle_frame)
+        # individual_se = self.individual_se / (self.learning_windows / self.time_subframe - self.idle_frame)
+        individual_se = self.individual_se / (self.learning_windows / self.time_subframe)  # 維持原論文的設定 (不考慮 idle_frame)
 
         return individual_se, self.urllc_perfect, self.urllc_tolerable, self.urllc_fail, self.idle_frame
 

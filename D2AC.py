@@ -30,14 +30,14 @@ DDIM = False  # True if using DDIM
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 環境參數
 set_seed(seed= 123)
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'D2AC'
-exp_name = 'exp7'
+exp_name = 'exp17'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -45,7 +45,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/D2AC/exp7/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp17/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -107,16 +107,16 @@ def get_actions(state, total_band, model, device):
 # se_weight : no
 # reward_clipping : clip the reward or not
 # return utility, reward, float (np.array with shape (1))
-# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
-#     if reward_clipping: 
-#         threshold1 = 6.5
-#         threshold2 = 4.5
-#         if utility >= threshold1: reward = 1
-#         elif utility < threshold1 and utility > threshold2: reward = 0
-#         else: reward = -1   # reward : shape ()
-#     else: reward = utility  # reward : shape (1)
-#     return utility, reward
+def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
+    if reward_clipping: 
+        threshold1 = 6.5
+        threshold2 = 4.5
+        if utility >= threshold1: reward = 1
+        elif utility < threshold1 and utility > threshold2: reward = 0
+        else: reward = -1   # reward : shape ()
+    else: reward = utility  # reward : shape (1)
+    return utility, reward
 
 # LSTM-A2C 的 reward
 # 這種在 fixedUE 中表現跟上一種差不多，但在 movingUE 中表現差於上一種非常多
@@ -141,20 +141,20 @@ def get_actions(state, total_band, model, device):
 # 自創 reward function
 # reward : shape (1), utility.shape (1)
 # se : np.int with shape (1), qoe : np.array with shape (3)
-def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-    standard = 0.98  # standard for embb & volte
-    standard2 = 0.95  # standard for urllc
-    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
-    if qoe[1] >= standard and qoe[0] >= standard:
-        if qoe[2] >= standard:
-            reward = utility[0] / 10  # 會介於 0~1
-        else:
-            reward = (qoe[2] - standard2)  # -0~-0.95
-    else:
-        reward = -1  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
-    reward = np.array([reward])
+# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+#     standard = 0.98  # standard for embb & volte
+#     standard2 = 0.95  # standard for urllc
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+#     if qoe[1] >= standard and qoe[0] >= standard:
+#         if qoe[2] >= standard:
+#             reward = utility[0] / 10  # 會介於 0~1
+#         else:
+#             reward = (qoe[2] - standard2)  # -0~-0.95
+#     else:
+#         reward = -1  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+#     reward = np.array([reward])
 
-    return utility, reward
+#     return utility, reward
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -175,7 +175,7 @@ state_dim = len(ser_cat)
 action_dim = len(ser_cat)
 max_action = 1
 beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
-denoise_step = 5  # 6
+denoise_step = 10  # 6
 actor_lr = 0.001
 critic_lr = 0.001
 weight_decay = 0
@@ -264,9 +264,9 @@ qoe_weights = [1, 1, 1]  # \betas
 se_weight = 0.01  # \alpha (原論文設定為 0.01)
 total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
 learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
-dl_mimo = 64
+dl_mimo = 16  # 原本是 64
 UE_no = 100 if fixed_UE else 300
-if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no)
+if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= True)
 else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo)
 env.countReset()  # reset 所有計數器
 if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
@@ -426,7 +426,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp7/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp17/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -435,7 +435,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp7/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp17/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -444,7 +444,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/D2AC/exp7/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp17/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

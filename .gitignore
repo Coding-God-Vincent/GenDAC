@@ -11,3 +11,5 @@ __pycache__/
 # (額外建議) 如果你有用 Mac，通常也建議加上這個
 .DS_Store
 
+# 不上傳 Logs
+Logs/
