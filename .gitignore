@@ -13,3 +13,6 @@ __pycache__/
 
 # 不上傳 Logs
 Logs/
+
+# 不上傳 Params
+Params/

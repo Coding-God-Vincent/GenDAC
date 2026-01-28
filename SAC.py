@@ -31,7 +31,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定 tensorboard'''
 algo_name = 'SAC'
-exp_name = 'exp4'
+exp_name = 'exp5'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -133,10 +133,10 @@ qoe_weights = [1, 1, 1]
 se_weight = 0.01
 total_band = 10 * 10**6  # unit : MHz
 total_timesteps = 10000
-dl_mimo = 64
+dl_mimo = 16
 learning_windows = 2000
 UE_no = 100 if fixed_UE else 300
-if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= 64, UE_max_no= UE_no) 
+if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no) 
 else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo)
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -233,7 +233,7 @@ for frame in tqdm(range(1, total_timesteps+1)):
     # calculate the individual se of each network slices of the current learning window
     # indivifual_se : np.array with shape (3)
     # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
-    individual_se, urllc_perfect, urllc_tolerable, urllc_fail = env.eval_get_obs()
+    individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
 
     # print the outcome of the current learning window
     # print(f"action = {((action[0] / total_band).item()):.3f}, {((action[1] / total_band).item()):.3f}, {((action[2] / total_band).item()):.3f}")
@@ -304,7 +304,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/SAC/exp4/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/SAC/exp5/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -313,7 +313,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/SAC/exp4/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/SAC/exp5/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -322,7 +322,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/SAC/exp4/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/SAC/exp5/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

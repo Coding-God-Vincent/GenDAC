@@ -29,15 +29,15 @@ DDIM = False  # True if using DDIM
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 環境參數
-set_seed(seed= 123)
+set_seed(seed= 321)
 fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
-algo_name = 'D2AC'
-exp_name = 'exp17'
+algo_name = 'RDAC'
+exp_name = 'exp23'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -45,11 +45,12 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp17/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp23/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''State Preprocessing'''
+# 原論文使用 z-score，但當 embb 流量突襲的時候其他的 bits 會被吃掉，尤其是 URLLC，若被稀釋掉就很危險
 # state : np.array, shape (state_dim)
 # ser_cat : list, len = 3
 # return preprocessed state : np.array, shape (state_dim)
@@ -62,8 +63,7 @@ writer = SummaryWriter(log_dir= log_path)
 #         preproc_state = state.copy()
 #         return (preproc_state - preproc_state.mean()) / preproc_state.std()
 
-# 改用 max-scaling (讓輸出介於 [0~1])
-# 因為用 z-score 沒辦法體現當前流量的負載是忙碌還是很輕鬆，乍看之下根本環境沒差，但其實有
+# 改用 max-scaling (讓輸出介於 [0~1])，但這種方法泛話能力不佳
 # ex:
 # 負載輕鬆 : slice A 需要 1 單位，slice B 需要 9 單位資源 -> Z-score 視角：A 很小 (負值)，B 很大 (正值)。模型決定給 Slice A 10% (1 MHz)，Slice B 90% (9 MHz) -> ok
 # 負載很大 : slice A 需要 100 單位，slice B 需要 900 單位 -> Z-score 只看分佈，這兩個數字經過正規化後，會跟場景 1 幾乎一模一樣！ 模型看到 A 很小 (負值)，B 很大 (正值)。
@@ -71,14 +71,23 @@ writer = SummaryWriter(log_dir= log_path)
 #           Slice A 這次負載很重，它至少需要 2 MHz 才能活命 (SLA 門檻)，結果你只給它 1 MHz。
 #           結局：Slice A 直接死亡 (SSR=0)。
 # 但觀察後發現本實驗環境中沒有這種情況發生，每個 learning window 的 loading 都差不多。不會有突然暴衝的情況發生。
+# def state_preprocessing(state):
+#     Max_ = 10000000
+#     preproc_state = np.zeros(state.shape)
+#     if state.sum() == 0:  return preproc_state
+#     else: 
+#         preproc_state = state.copy()
+#         preproc_state = preproc_state / Max_
+#     return preproc_state
+
+# 改用 log-scaling，這應該是最適合這種跨度大的前處理方式
+# state : np.array, shape (state_dim)
+# ser_cat : list, len = 3
+# return preprocessed state : np.array, shape (state_dim)
 def state_preprocessing(state):
-    Max_ = 10000000
-    preproc_state = np.zeros(state.shape)
-    if state.sum() == 0:  return preproc_state
-    else: 
-        preproc_state = state.copy()
-        preproc_state = preproc_state / Max_
-    return preproc_state
+    log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+    return log_state / 10.0  # 壓到 [0~10] 之間
+
         
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 回傳各網路切片所分到的頻寬量 (Hz)
@@ -107,16 +116,16 @@ def get_actions(state, total_band, model, device):
 # se_weight : no
 # reward_clipping : clip the reward or not
 # return utility, reward, float (np.array with shape (1))
-def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
-    if reward_clipping: 
-        threshold1 = 6.5
-        threshold2 = 4.5
-        if utility >= threshold1: reward = 1
-        elif utility < threshold1 and utility > threshold2: reward = 0
-        else: reward = -1   # reward : shape ()
-    else: reward = utility  # reward : shape (1)
-    return utility, reward
+# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
+#     if reward_clipping: 
+#         threshold1 = 6.5
+#         threshold2 = 4.5
+#         if utility >= threshold1: reward = 1
+#         elif utility < threshold1 and utility > threshold2: reward = 0
+#         else: reward = -1   # reward : shape ()
+#     else: reward = utility  # reward : shape (1)
+#     return utility, reward
 
 # LSTM-A2C 的 reward
 # 這種在 fixedUE 中表現跟上一種差不多，但在 movingUE 中表現差於上一種非常多
@@ -141,20 +150,20 @@ def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
 # 自創 reward function
 # reward : shape (1), utility.shape (1)
 # se : np.int with shape (1), qoe : np.array with shape (3)
-# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-#     standard = 0.98  # standard for embb & volte
-#     standard2 = 0.95  # standard for urllc
-#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
-#     if qoe[1] >= standard and qoe[0] >= standard:
-#         if qoe[2] >= standard:
-#             reward = utility[0] / 10  # 會介於 0~1
-#         else:
-#             reward = (qoe[2] - standard2)  # -0~-0.95
-#     else:
-#         reward = -1  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
-#     reward = np.array([reward])
+def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+    standard = 0.98  # standard for embb & volte
+    standard2 = 0.95  # standard for urllc (最高可以 0.96)
+    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+    if qoe[1] >= standard and qoe[0] >= standard:
+        if qoe[2] >= standard2:
+            reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 100.0) * se[0])[0] / 10  # 會介於 0~1
+        else:
+            reward = (qoe[2] - standard2) - 0.5  # -0.5~-1.45
+    else:
+        reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+    reward = np.array([reward])
 
-#     return utility, reward
+    return utility, reward
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -175,7 +184,7 @@ state_dim = len(ser_cat)
 action_dim = len(ser_cat)
 max_action = 1
 beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
-denoise_step = 10  # 6
+denoise_step = 5  # 6
 actor_lr = 0.001
 critic_lr = 0.001
 weight_decay = 0
@@ -249,7 +258,8 @@ d2ac_opt = D2AC_OPT(
     critic= critic,
     critic_optim= critic_optim,
     device= device,
-    n_steps= 3,  # 我的環境屬於 Contextual Bandit 問題，gamma = 0，為了加速這邊把 n_step 設為 1
+    n_steps= 3,  
+    with_rec_loss= True,
     # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
     action_space= fake_action_space
 )
@@ -266,7 +276,7 @@ total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episo
 learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
 dl_mimo = 16  # 原本是 64
 UE_no = 100 if fixed_UE else 300
-if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= True)
+if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= False)
 else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo)
 env.countReset()  # reset 所有計數器
 if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
@@ -343,12 +353,15 @@ for frame in tqdm(range(1, total_timesteps+1)):
     
     # update the model after warming up
     if len(buffer) > batch_size * 3:
-        loss = d2ac_opt.update(sample_size= batch_size, buffer= buffer)
+        loss, observe_values = d2ac_opt.update(sample_size= batch_size, buffer= buffer)
         pprint(f"loss = {loss}")
         writer.add_scalar(tag= 'loss/actor_loss', scalar_value= loss['actor_loss'].item(), global_step= frame)
         writer.add_scalar(tag= 'loss/policy_loss', scalar_value= loss['policy_loss'].item(), global_step= frame)
         writer.add_scalar(tag= 'loss/recon_loss', scalar_value= loss['recon_loss'].item(), global_step= frame)
         writer.add_scalar(tag= 'loss/critic_loss', scalar_value= loss['critic_loss'].item(), global_step= frame)
+        writer.add_scalar(tag= 'unclampped_logits/absmin', scalar_value= observe_values['unclampped_logits_absmin'], global_step= frame)
+        writer.add_scalar(tag= 'unclampped_logits/max', scalar_value= observe_values['unclampped_logits_max'], global_step= frame)
+        writer.add_scalar(tag= 'unclampped_logits/absmean', scalar_value= observe_values['unclampped_logits_absmean'], global_step= frame)
     # Actor_losses.append(loss['actor_loss'].item())
     # Critic_losses.append(loss['critic_loss'].item())
 
@@ -395,6 +408,10 @@ writer.add_hparams(hparam_dict= hparams_dict, metric_dict= metric_dict)
 
 print("Complete")
 
+# 存下訓練好的參數以供後續產圖
+torch.save(critic.state_dict(), 'wor_critic_weights.pth')
+torch.save(gdm.state_dict(), 'wor_gdm_weights.pth')
+
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # Generate Outcome Figures
 
@@ -426,7 +443,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp17/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp23/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -435,7 +452,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp17/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp23/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -444,7 +461,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp17/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp23/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

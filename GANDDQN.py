@@ -56,7 +56,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'GANDDQN'
-exp_name = 'exp6'
+exp_name = 'exp7'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -675,7 +675,7 @@ band_whole_no = 10 * 10**6  # 10MHz
 band_per = 1 * 10**6  # bandwidth allocation resolution : 1MHz
 qoe_weight = [1, 1, 1]
 se_weight = 0.01
-dl_mimo = 64  # MIMO 天線數
+dl_mimo = 16  # MIMO 天線數
 learning_windows = 2000  # 一個 episode
 UE_no = 100 if fixed_UE else 300
 if fixed_UE: env = cellularEnv(ser_cat= ser_cat_vec, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no)
@@ -740,7 +740,7 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     # calculate the individual se of each network slices of the current learning window
     # indivifual_se : np.array with shape (3)
     # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
-    individual_se, urllc_perfect, urllc_tolerable, urllc_fail = env.eval_get_obs()
+    individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
     
     # 紀錄相關結果
     QoE.append(qoe.tolist())
@@ -835,7 +835,7 @@ ma_utility = moving_average(utilities_, window_size = 200)
 
 # loss figure (figure(2))
 model.plot_loss()
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp2/loss.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/loss.png")
 
 # qoe figure (figure(3))
 plt.figure(3)
@@ -847,7 +847,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp2/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -856,7 +856,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp2/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -865,7 +865,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp2/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/Utility.png")
 
 print("Graph Saved")
 # %%

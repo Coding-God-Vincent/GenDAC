@@ -339,7 +339,7 @@ class cellularEnv(object):
                     # 模擬突發封包
                     if self.hard_scenario == False:
                         self.UE_readtime[ue_index]  = np.random.exponential(180* 10 ** -3, [1, ue_index_Size]).squeeze()
-                    else: self.UE_readtime[ue_index]  = np.random.exponential(10* 10 ** -3, [1, ue_index_Size]).squeeze()  # Exponential Distribution with Mean = 10ms
+                    else: self.UE_readtime[ue_index]  = np.random.exponential(50* 10 ** -3, [1, ue_index_Size]).squeeze()  # Exponential Distribution with Mean = 50ms
 
         # 針對每個 UE 看是否要產生新的封包，封包大小的單位為 bits
         for ue_id in range(self.UE_max_no):  # 每次考慮一個 UE
@@ -383,7 +383,7 @@ class cellularEnv(object):
                         # 再產生一個 readtime
                         if self.hard_scenario == False:
                             self.UE_readtime[ue_id]  = np.random.exponential(180* 10 ** -3, 1).squeeze()
-                        else: self.UE_readtime[ue_id]  = np.random.exponential(10* 10 ** -3, 1).squeeze()  # Exponential Distribution with Mean = 10ms
+                        else: self.UE_readtime[ue_id]  = np.random.exponential(50* 10 ** -3, 1).squeeze()  # Exponential Distribution with Mean = 50ms
 
                     self.tx_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1  # 將記錄 learning window 中總封包總數的計數器 (tx_pkt_no) + 1
                     self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]  # 產生完新封包後馬上備份 UE_buffer 到 UE_buffer_backup
@@ -398,7 +398,7 @@ class cellularEnv(object):
                     else:  # urllc
                         if self.hard_scenario == False:
                             self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
-                        else: self.UE_readtime[ue_id] = np.random.exponential(10 * 10 ** -3, 1).squeeze()
+                        else: self.UE_readtime[ue_id] = np.random.exponential(50 * 10 ** -3, 1).squeeze()
                     # record the no. of the dropped packets
                     self.drop_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1    
 

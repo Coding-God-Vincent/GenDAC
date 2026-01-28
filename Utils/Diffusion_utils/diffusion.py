@@ -107,6 +107,7 @@ class Diffusion(nn.Module):
         self.register_buffer('posterior_mean_coef1', betas * np.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod))
         self.register_buffer('posterior_mean_coef2', (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod))
     
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # 求出一個 batch 各資料的 x_0_hat
     # x_t : shape (batch_size, action_dim)
@@ -121,6 +122,7 @@ class Diffusion(nn.Module):
             extract(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * predicted_noise_GDM
         )
     
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # 對一個 batch 中各資料做一次 denoise 後得到各資料的 mean & variance
     # x_t : shape (batch_size, action_dim)
@@ -136,9 +138,9 @@ class Diffusion(nn.Module):
         x_0_hat = self.x_0_hat(x_t= x_t, t= t, predicted_noise_GDM= self.model(state= state, x_t= x_t, time= t))
         # clip x_0_hat in [-max_action, max_action]
         # clamp_ -> in-place, clamp -> return new tensor (but preserve gradient), torch.clamp() is recommanded
-        if self.clip_denoised: x_0_hat.clamp(-self.max_action, self.max_action)
+        # if self.clip_denoised: x_0_hat.clamp(-self.max_action, self.max_action)
         # use tanh to provide more smooth gradient
-        # if self.clip_denoised: x_0_hat = torch.tanh(x_0_hat)
+        if self.clip_denoised: x_0_hat = torch.tanh(x_0_hat)
         # 但 tanh 在接近 1 & -1 這種邊界的時候梯度會是 0，所以改回 torch.clamp，讓他在邊界時維持強度，因為 Critic 一直起不來
 
         # calculate mean & variance & log of posterior distribution
@@ -154,6 +156,7 @@ class Diffusion(nn.Module):
 
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
     
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # 對一個 batch 中各資料做一次 denoise 後得到各資料的 x_(t-1) by DDPM
     # x_t : shape (batch_size, action_dim)
@@ -179,6 +182,7 @@ class Diffusion(nn.Module):
         # nonzero_mask (batch_size, 1) * noise (batch_size, action_dim) -> shape (batch_size, action_dim)
         return model_mean + (0.5 * model_log_variance).exp() * nonzero_mask * noise
         
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # 對一個 batch 中各資料做一次 denoise 後得到各資料的 x_(t-1) by DDIM
     # x_t : shape (batch_size, action_dim)
@@ -189,7 +193,7 @@ class Diffusion(nn.Module):
     def DDIM_single_denoise_step(self, x_t, t, state):
         batch_size, _ = x_t.shape
         # predicted_epsilon of each data in batch, shape (batch_size, action_dim)
-        predicted_noise_GDM= self.model(state= state, x_t= x_t, time= t)
+        predicted_noise_GDM = self.model(state= state, x_t= x_t, time= t)
         # x_0_hat of each data in a batch, shape (batch_size, action_dim)
         x_0_hat = self.x_0_hat(x_t= x_t, t= t, predicted_noise_GDM= predicted_noise_GDM)
         return (
@@ -197,11 +201,13 @@ class Diffusion(nn.Module):
             extract(torch.sqrt(1. - self.alphas_cumprod_prev), t, x_t.shape) * predicted_noise_GDM
         )
 
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # 對一個 batch 中各資料做一遍完整的 (self.denoise_steps 次 denoise) reverse process 後得到各資料最終的 action (clampped)。
+    # 對一個 batch 中各資料做一遍完整的 (self.denoise_steps 次 denoise) reverse process 後得到各資料最終的 action (clampped)
     # state : shape (batch_size, state_dim)
     # x_t_shape : tuple (batch_size, action_dim)
     # return x_0 (action) of each data in a batch, shape (batch_size, action_dim)
+    # 多回傳的 x_next 是想要看沒有使用 reconstruction loss 時 x_next 是否都是 outlier 的值
     # 這邊的 x_0 都是有追蹤梯度的
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     def reverse_process(self, state):
@@ -219,9 +225,10 @@ class Diffusion(nn.Module):
             # DDIM
             else: x_next = self.DDIM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
         
-        # return torch.tanh(x_next)
-        return torch.clamp(x_next, -self.max_action, self.max_action)
+        return torch.tanh(x_next)
+        # return torch.clamp(x_next, -self.max_action, self.max_action)
     
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # 可以透過 diffusion(state) 來做 diffusion.reverse_process(state) 
     # state : shape (batch_size, state_dim)
@@ -229,6 +236,7 @@ class Diffusion(nn.Module):
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     def forward(self, state):
         return self.reverse_process(state= state)
+
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # forward process
@@ -246,6 +254,7 @@ class Diffusion(nn.Module):
         )
         return x_t
     
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # 將一個 batch 的 x_0 做 forward process 後 (得 x_t, \epsilon)，與 model(state, x_t(隨機噪聲), t) 輸出的預測噪聲 (\epsilon_\theta) 進行 MSE 計算後回傳
     # return MSE(\epsilon, \epsilon_\theta)
@@ -265,3 +274,28 @@ class Diffusion(nn.Module):
         predicted_noise = self.model(state= state, x_t= x_t, time= t)
         return nn.functional.mse_loss(predicted_noise, noise)
 
+
+    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+    # 對一個 batch 中各資料做一遍完整的 (self.denoise_steps 次 denoise) reverse process 後得到各資料最終的 action (clampped)
+    # state : shape (batch_size, state_dim)
+    # x_t_shape : tuple (batch_size, action_dim)
+    # return x_0 (action) of each data in a batch, shape (batch_size, action_dim)
+    # 回傳的 x_0 是想要看沒有使用 reconstruction loss 時 x_0 是否都是 outlier 的值
+    # 這邊的 x_0 都是有追蹤梯度的
+    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+    def observe_reverse_process(self, state):
+        batch_size, _ = state.shape
+        # x_t : shape (batch_size, action_dim), obey the gaussian distirbution N(0, I)
+        x_t = torch.randn((batch_size, self.action_dim), device= self.device)
+        
+        # do reverse process for each data in a batch
+        for i in reversed(range(0, self.denoise_steps)):  # self.denoise_steps-1, self.denoise_steps-2, ..., 1, 0
+            # will be used in extract() as indices of gather() so its dtype must be torch.long, shape (batch_size)
+            timesteps = torch.full((batch_size,), i, device= self.device, dtype= torch.long)  
+            # do the ith denoise step to each data in a batch then return x_(t-1) of each data, shape (batch_size, action_dim)
+            # DDPM
+            if not self.DDIM: x_next = self.DDPM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
+            # DDIM
+            else: x_next = self.DDIM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
+        
+        return x_next

@@ -28,7 +28,7 @@ else: print("\n================================================== Moving_UE_env 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定圖片 / log 路徑'''
 algo_name = 'LSTM_A2C'
-exp_name = 'exp3'
+exp_name = 'exp4'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -175,10 +175,10 @@ ser_cat = ['volte', 'embb_general', 'urllc']
 total_band = 10  # unit : MHz
 band_per = 0.2  # Granularitiy (unit : MHz)
 total_timesteps = 10000
-dl_mimo = 64
+dl_mimo = 16
 learning_windows = 2000
 UE_no = 100 if fixed_UE else 300  # 原本 LSTM-A2C 那邊設 1200 應該是真的沒有 buffer reset，因為 1200 的話要跑超久。這邊為了加速我把人數訂為跟 GANDDQN 那邊一樣 100 人
-if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= 64, UE_max_no= UE_no) 
+if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no) 
 else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo)
 
 '''GPU'''
@@ -196,9 +196,9 @@ Critic_losses = []
 '''Training Parameters'''
 lr_actor = 0.002
 lr_critic = 0.01
-gamma = 0  # 因為環境屬於 Contextual Bandit 問題，即當前動作不會影響到其他狀態，因此沒必要考慮未來狀態，因此將 gamma = 0
+gamma = 0  
 entropy_beta = 0.001
-LSTM_LEN = 3
+LSTM_LEN = 10
 # 內含 1128 種組合 (每種組合也都用 list 存)
 action_space = utils.action_space(total= int(total_band // band_per), ser_num= len(ser_cat))  * band_per * 10**6
 # print(len(action_space))  # 1128
@@ -260,7 +260,7 @@ for frame in tqdm(range(1, total_timesteps+1)):
     # calculate the individual se of each network slices of the current learning window
     # indivifual_se : np.array with shape (3)
     # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
-    individual_se, urllc_perfect, urllc_tolerable, urllc_fail = env.eval_get_obs()
+    individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
 
     # print the outcome of the current learning window
     print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward):.3f}, utility = {float(utility):.3f}, loss = {loss:.3f}")
@@ -328,7 +328,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp3/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp4/QoE.png")
 
 # se figure (figure(4))
 plt.figure(1)
@@ -337,7 +337,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp3/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp4/SE.png")
 
 # utility figure (figure(5))
 plt.figure(2)
@@ -346,7 +346,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp3/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp4/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

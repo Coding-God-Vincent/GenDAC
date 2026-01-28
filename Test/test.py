@@ -63,5 +63,5 @@ from torch.distributions import Categorical
 # print(np.array(a), type(np.array(a)))
 # print(torch.zeros(1).item())
 
-a = [1, 2, 3, 4, 5]
-print(a[0:3])
+a = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]], dtype= torch.float32)
+print(torch.min(a).item(), torch.max(a).item(), torch.mean(a).item())
