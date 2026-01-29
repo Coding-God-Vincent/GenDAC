@@ -30,7 +30,7 @@ color_sac = 'tab:cyan'
 # steps = np.arange(10000)
 
 # # 讀 csv 檔
-# d2ac_P1_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/D2AC_DDPM_1_csv/utility.csv")
+# d2ac_P1_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GenDAC_DDPM_5_csv/utility.csv")
 # ganddqn_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GANDDQN_csv/utility.csv")
 # hard_slicing_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Hard_Slicing_csv/utility.csv")
 # lstm_a2c_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/LSTM_A2C_csv/utility.csv")
@@ -102,7 +102,7 @@ color_sac = 'tab:cyan'
 # steps = np.arange(10000)
 
 # # 讀 csv 檔
-# d2ac_P1_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/D2AC_DDPM_1_csv/se.csv")
+# d2ac_P1_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GenDAC_DDPM_5_csv/se.csv")
 # ganddqn_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GANDDQN_csv/se.csv")
 # hard_slicing_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Hard_Slicing_csv/se.csv")
 # lstm_a2c_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/LSTM_A2C_csv/se.csv")
@@ -174,9 +174,9 @@ color_sac = 'tab:cyan'
 '''QoE'''
 
 # Hyperparameters
-current_qoe = 'qoe_volte'  # qoe_embb_general, qoe_urllc, qoe_volte
+current_qoe = 'qoe_embb_general'  # qoe_embb_general, qoe_urllc, qoe_volte
 fixed= True
-algo1 = 'D2AC_DDPM_1'
+algo1 = 'GenDAC_DDPM_5'
 algo2 = 'GANDDQN'
 algo3 = 'Hard_Slicing'
 algo4 = 'LSTM_A2C'

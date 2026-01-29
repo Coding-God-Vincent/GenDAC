@@ -29,15 +29,15 @@ DDIM = False  # True if using DDIM
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 環境參數
-set_seed(seed= 321)
+set_seed(seed= 123)
 fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
-algo_name = 'RDAC'
-exp_name = 'exp23'
+algo_name = 'GenDAC'
+exp_name = 'exp25'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -45,7 +45,7 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/D2AC/exp23/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -184,7 +184,7 @@ state_dim = len(ser_cat)
 action_dim = len(ser_cat)
 max_action = 1
 beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
-denoise_step = 5  # 6
+denoise_step = 1  # 6
 actor_lr = 0.001
 critic_lr = 0.001
 weight_decay = 0
@@ -443,7 +443,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp23/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC/exp25/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -452,7 +452,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp23/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC/exp25/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -461,7 +461,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/D2AC/exp23/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC/exp25/Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)
