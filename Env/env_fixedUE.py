@@ -161,7 +161,7 @@ class cellularEnv(object):
     # 通道模型 (只考慮大尺度衰弱 (考慮 path loss 和 shadow fading)) : 會得出每一個 UE 的通道狀況 (chan_loss, shape = (UE_max_no, 1))。 unit : dB
     def channel_model(self): 
         if self.chan_mod == '36814':
-            shadowing_var = 8  # rayleigh fading shadowing variance 8dB。代表會有正負 8dB 的功率波動。
+            shadowing_var = 8  # log-normal shadowing with 8dB std。代表會有正負 8dB 的功率波動。
             # path_loss.shape = (UE_max_no, 1)，為每一個 UE 會有的 path_loss
             # 後面的 random.normal(...) 會產生出一個 (UE_max_no) 的 np.ndarray，內容為各 UE 的 shadow fading 值
             # 最後 reshape() 會將 shape 從 (UE_max_no) 轉成 (UE_max_no, 1)

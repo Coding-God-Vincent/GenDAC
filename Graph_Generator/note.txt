@@ -4,3 +4,4 @@ graph_generator3 -> observation bits
 graph_generator4 -> demand bits vs supply bits (partial) (single algo.)
 graph_generator5 -> (supply bits - demand bits) in last 2000 (every algo.)
 graph_generator6 -> D2AC_DDPM_1 使用自創 reward function 的結果 vs 直接使用 Objective function 的結果比較
+graph_generator7 -> Hard-slicing 於 movingUE 跟 fixedUE 之下的效能比較，主要想要看 movingUE 之下是不是有比較劇烈。

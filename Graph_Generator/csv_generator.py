@@ -88,11 +88,11 @@ target_tags = [
 # generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 
-# '''****algo4 : Hard-Slicing (沒有紀錄 reward，記得把 tags 中的 reward 弄掉)''' 
-# algo_name = 'Hard_Slicing'
-# file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
-# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/Hard_Slicing/exp4/tensorboard/events.out.tfevents.1769490491.SuperTrumpet.314231.0'
-# generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
+'''****algo4 : Hard-Slicing (沒有紀錄 reward，記得把 tags 中的 reward 弄掉)''' 
+algo_name = 'Hard_Slicing'
+file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine')
+event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/Hard_Slicing/exp3/tensorboard/events.out.tfevents.1769952958.SuperTrumpet.1258.0'
+generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 '''****algo5 : SAC'''
 # algo_name = 'SAC'
@@ -101,7 +101,7 @@ target_tags = [
 # generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 '''****algo6 : PPO'''
-algo_name = 'PPO'
-file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
-event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/PPO/exp4/tensorboard/events.out.tfevents.1769504617.SuperTrumpet.384040.0'
-generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
+# algo_name = 'PPO'
+# file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
+# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/PPO/exp4/tensorboard/events.out.tfevents.1769504617.SuperTrumpet.384040.0'
+# generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)

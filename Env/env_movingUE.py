@@ -93,9 +93,9 @@ class EnvMove(object):
         self.UE_cell[np.where(np.sum(self.UE_pos ** 2, axis = 1) <= self.BS_radius ** 2)] = 1
         # UE_speed depend on which service_cat they use # unit : m/s
         self.UE_speed = np.zeros(UE_max_no)
-        self.UE_speed[np.where(self.UE_cat == 'volte')] = 1
-        self.UE_speed[np.where(self.UE_cat == 'embb_general')] = 4
-        self.UE_speed[np.where(self.UE_cat == 'urllc')] = 8
+        self.UE_speed[np.where(self.UE_cat == 'volte')] = 1  # original : 1
+        self.UE_speed[np.where(self.UE_cat == 'embb_general')] = 4  # original : 4
+        self.UE_speed[np.where(self.UE_cat == 'urllc')] = 8  # original : 8
         # UE_direction obey the uniform probability in the range of [-180° ~ 180°] (basically most of the models use this)
         # why not [0° ~ 359°] ? + indicates turn left, - indicates turn right,  more convenient calculating the moving angle
         self.UE_direction = np.random.uniform(-180, 180, self.UE_max_no)
