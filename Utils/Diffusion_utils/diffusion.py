@@ -138,10 +138,9 @@ class Diffusion(nn.Module):
         x_0_hat = self.x_0_hat(x_t= x_t, t= t, predicted_noise_GDM= self.model(state= state, x_t= x_t, time= t))
         # clip x_0_hat in [-max_action, max_action]
         # clamp_ -> in-place, clamp -> return new tensor (but preserve gradient), torch.clamp() is recommanded
-        # if self.clip_denoised: x_0_hat.clamp(-self.max_action, self.max_action)
+        if self.clip_denoised: x_0_hat.clamp(-self.max_action, self.max_action)
         # use tanh to provide more smooth gradient
-        if self.clip_denoised: x_0_hat = torch.tanh(x_0_hat)
-        # 但 tanh 在接近 1 & -1 這種邊界的時候梯度會是 0，所以改回 torch.clamp，讓他在邊界時維持強度，因為 Critic 一直起不來
+        # if self.clip_denoised: x_0_hat = torch.tanh(x_0_hat)
 
         # calculate mean & variance & log of posterior distribution
         # posterior_mean : shape (batch_size, action_dim)
@@ -225,8 +224,8 @@ class Diffusion(nn.Module):
             # DDIM
             else: x_next = self.DDIM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
         
-        return torch.tanh(x_next)
-        # return torch.clamp(x_next, -self.max_action, self.max_action)
+        # return torch.tanh(x_next)
+        return torch.clamp(x_next, -self.max_action, self.max_action)
     
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

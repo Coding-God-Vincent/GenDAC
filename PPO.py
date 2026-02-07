@@ -15,14 +15,14 @@ from pprint import pprint
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定環境變數'''
 set_seed(seed= 123)
-fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定 tensorboard'''
 algo_name = 'PPO'
-exp_name = 'exp4'
+exp_name = 'exp3'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -32,6 +32,9 @@ writer = SummaryWriter(log_dir= log_path)
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/PPO/exp4/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+
+if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/PPO") / f"{exp_name}"
+else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/PPO") / f"{exp_name}"
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Moving Average'''
@@ -65,14 +68,22 @@ def moving_average(data, window_size):
 #           Slice A 這次負載很重，它至少需要 2 MHz 才能活命 (SLA 門檻)，結果你只給它 1 MHz。
 #           結局：Slice A 直接死亡 (SSR=0)。
 # 但觀察後發現本實驗環境中沒有這種情況發生，每個 learning window 的 loading 都差不多。不會有突然暴衝的情況發生。
+# def state_preprocessing(state):
+#     Max_ = 10000000
+#     preproc_state = np.zeros(state.shape)
+#     if state.sum() == 0:  return preproc_state
+#     else: 
+#         preproc_state = state.copy()
+#         preproc_state = preproc_state / Max_
+#     return preproc_state
+
+# 改用 log-scaling，這應該是最適合這種跨度大的前處理方式
+# state : np.array, shape (state_dim)
+# ser_cat : list, len = 3
+# return preprocessed state : np.array, shape (state_dim)
 def state_preprocessing(state):
-    Max_ = 10000000
-    preproc_state = np.zeros(state.shape)
-    if state.sum() == 0:  return preproc_state
-    else: 
-        preproc_state = state.copy()
-        preproc_state = preproc_state / Max_
-    return preproc_state
+    log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+    return log_state / 10.0  # 壓到 [0~10] 之間
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Reward Calculation'''
@@ -112,6 +123,24 @@ def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
     reward = np.array([reward])
 
     return utility, reward
+
+# 自創 reward function
+# reward : shape (1), utility.shape (1)
+# se : np.int with shape (1), qoe : np.array with shape (3)
+# def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+#     standard = 0.98  # standard for embb & volte
+#     standard2 = 0.95  # standard for urllc (最高可以 0.96)
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+#     if qoe[1] >= standard and qoe[0] >= standard:
+#         if qoe[2] >= standard2:
+#             reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 100.0) * se[0])[0] / 10  # 會介於 0~1
+#         else:
+#             reward = (qoe[2] - standard2) - 0.5  # -0.5~-1.45
+#     else:
+#         reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+#     reward = np.array([reward])
+
+#     return utility, reward
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Setup device'''
@@ -320,7 +349,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/PPO/exp4/QoE.png")
+plt.savefig(image_path / f"QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -329,7 +358,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/PPO/exp4/SE.png")
+plt.savefig(image_path / f"SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -338,7 +367,8 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/PPO/exp4/Utility.png")
+plt.savefig(image_path / f"Utility.png")
+
 
 # loss figure (figure(6))
 # plt.figure(6)

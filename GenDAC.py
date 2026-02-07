@@ -37,7 +37,8 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'GenDAC'
-exp_name = 'exp11'
+exp_name = 'exp13'
+
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -47,6 +48,9 @@ writer = SummaryWriter(log_dir= log_path)
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp11/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+
+if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
+else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''State Preprocessing'''
@@ -184,7 +188,7 @@ state_dim = len(ser_cat)
 action_dim = len(ser_cat)
 max_action = 1
 beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
-denoise_step = 5  # 6
+denoise_step = 7  # 6
 actor_lr = 0.001
 critic_lr = 0.001
 weight_decay = 0
@@ -318,8 +322,6 @@ for frame in tqdm(range(1, total_timesteps+1)):
         env.scheduling()  # do lower-level allocation every timeslots
         env.provisioning()  # evaluate the SE & SSR of the current timeslot
         env.activity()  # assign readtime & generate packet according to the readtime
-        # if using the env of LSTM-A2C then move the users
-        if not fixed_UE: env.user_move()
         
 
     # calculate the reward of the current learning window
@@ -402,6 +404,8 @@ for frame in tqdm(range(1, total_timesteps+1)):
     # reset all counters after each learning window
     env.countReset()
 
+    # if using the env of LSTM-A2C then move the users
+    if not fixed_UE: env.user_move()
     
 
 metric_dict = {}
@@ -444,7 +448,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC/exp11/QoE.png")
+plt.savefig(image_path / f"QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -453,7 +457,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC/exp11/SE.png")
+plt.savefig(image_path / f"SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -462,7 +466,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC/exp11/Utility.png")
+plt.savefig(image_path / f"Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

@@ -94,7 +94,7 @@ class D2AC_OPT(BasePolicy):
             # acts need to clamp in [-max_action, max_action] ((-1, 1) here)
             acts = torch.clamp(acts, -1, 1)  # preserve gradient
             # we use tanh to provide smoother gradient
-            acts = torch.tanh(acts)
+            # acts = torch.tanh(acts)
         else: acts = logits
 
         # 若是要從機率分布中抽樣，就把該機率分布存入 dist

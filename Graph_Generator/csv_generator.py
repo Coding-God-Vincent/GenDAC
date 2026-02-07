@@ -50,15 +50,16 @@ def generate_csv(EA, original_csv_path, target_tags):
 
 '''hyperparameters'''
 # 要取出的指標的值
-target_tags = [
-    'qoe/volte', 'qoe/embb_general', 'qoe/urllc', 
-    'se', 'reward', 'utility', 
-    'observationBits/volte', 'observationBits/embb_general', 'observationBits/urllc',
-    'individual_se/embb_general', 'individual_se/volte', 'individual_se/urllc',
-    'action/embb_general', 'action/volte', 'action/urllc',
-    # 'idle_frame'
-]
+# target_tags = [
+#     'qoe/volte', 'qoe/embb_general', 'qoe/urllc', 
+#     'se', 'reward', 'utility', 
+#     'observationBits/volte', 'observationBits/embb_general', 'observationBits/urllc',
+#     'individual_se/embb_general', 'individual_se/volte', 'individual_se/urllc',
+#     'action/embb_general', 'action/volte', 'action/urllc',
+#     # 'idle_frame'
+# ]
 # target_tags = ['qoe/volte', 'qoe/embb_general', 'qoe/urllc', 'se', 'utility']
+target_tags = ['utility']
 
 
 '''*****algo1 : GenDAC'''
@@ -89,9 +90,9 @@ target_tags = [
 
 
 '''****algo4 : Hard-Slicing (沒有紀錄 reward，記得把 tags 中的 reward 弄掉)''' 
-algo_name = 'Hard_Slicing'
+algo_name = 'Hard_Slicing_TC/exp7'
 file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine')
-event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/Hard_Slicing/exp3/tensorboard/events.out.tfevents.1769952958.SuperTrumpet.1258.0'
+event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/Hard_Slicing/exp7/tensorboard/events.out.tfevents.1770113665.SuperTrumpet.67404.3'
 generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 '''****algo5 : SAC'''

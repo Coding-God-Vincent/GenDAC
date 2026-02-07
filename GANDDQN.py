@@ -48,7 +48,7 @@ from pathlib import Path
 
 # set_seed(seed= 123)
 set_seed(seed= 321)
-fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
@@ -56,7 +56,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'GANDDQN'
-exp_name = 'exp7'
+exp_name = 'exp3'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -586,29 +586,47 @@ def state_update(state, ser_cat):  # state : 當前 Learning window 各網路切
 # qoe -> 三種網路切片在整個 learning window 的 SSR
 # se  -> 整個 learning window 中的平均每個 timeslot 的 SE
 # threshold -> 當前 Learning window 對模型的利用率要求，會隨時間單調上升
-def calc_reward(qoe, se, threshold):
-    # # 依照權重算出 utility
-    utility = np.matmul(qoe_weight, qoe.reshape((3, 1))) + se_weight * se 
+# def calc_reward(qoe, se):
+#     # # 依照權重算出 utility
+#     utility = np.matmul(qoe_weight, qoe.reshape((3, 1))) + se_weight * se 
     
-    # # # 這演算法的 threshold 是會隨時間而單調上升的，故要限制 threshold
-    # threshold = 3.5 + 3.5 * frame / (total_timesteps / 1.25)  # 想讓他在 6800 episodes 時就要求她要到 6.5
-    # if threshold > 6.5:
-    #     threshold = 6.5
+#     # # # 這演算法的 threshold 是會隨時間而單調上升的，故要限制 threshold
+#     # threshold = 3.5 + 3.5 * frame / (total_timesteps / 1.25)  # 想讓他在 6800 episodes 時就要求她要到 6.5
+#     # if threshold > 6.5:
+#     #     threshold = 6.5
 
-    # # reward clipping
-    # if utility < threshold:
-    #     reward = 0
-    # else:
-    #     reward = 1
-    # return utility, reward
+#     # # reward clipping
+#     # if utility < threshold:
+#     #     reward = 0
+#     # else:
+#     #     reward = 1
+#     # return utility, reward
 
-    # 照論文參數設定 (URLLC 小封包)
-    threshold1 = 6.5  # 雖然論文中設 6.5，但失敗了，設一個小一點的看看
-    threshold2 = 4.5
-    if utility >= threshold1: reward = 1
-    elif utility < threshold1 and utility > threshold2: reward = 0
-    else: reward = -1
+#     # 照論文參數設定 (URLLC 小封包)
+#     threshold1 = 6.5  # 雖然論文中設 6.5，但失敗了，設一個小一點的看看
+#     threshold2 = 4.5
+#     if utility >= threshold1: reward = 1
+#     elif utility < threshold1 and utility > threshold2: reward = 0
+#     else: reward = -1
+#     return utility, reward
+
+# GenDAC 的 reward function
+# reward : shape (1), utility.shape (1)
+# se : np.int with shape (1), qoe : np.array with shape (3)
+def calc_reward(qoe, se, qoe_weights= [1, 1, 1], se_weight= 0.01, reward_clipping= False):
+    standard = 0.98  # standard for embb & volte
+    standard2 = 0.95  # standard for urllc (最高可以 0.96)
+    utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+    if qoe[1] >= standard and qoe[0] >= standard:
+        if qoe[2] >= standard2:
+            reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 100.0) * se[0])[0] / 10  # 會介於 0~1
+        else:
+            reward = (qoe[2] - standard2) - 0.5  # -0.5~-1.45
+    else:
+        reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+    reward = np.array([reward])
     return utility, reward
+
 
 #=============================================================================================================================================#
 # WGAN-GP 的 Generator (G_model) 選擇動作 by ɛ-greedy
@@ -735,7 +753,7 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     qoe, se = env.get_reward()  # 該 Learning window 中滿足要求傳送出去的封包 / 總封包數, 該 learning window 中平均一個 timeslot 的 SE
     # utility, reward = calc_reward(qoe, se, 3, 5.7)
     threshold = 3.5 + 1.5 * frame / (total_timesteps / 1.5)  # threshold -> 當前 learning window 模型預計要達到的標準 (隨時間單調上升)，達到才有 reward = 1
-    utility, reward = calc_reward(qoe, se, threshold)  # 根據 threshold 算出當前 learning window 得到的 reward
+    utility, reward = calc_reward(qoe, se)  # 根據 threshold 算出當前 learning window 得到的 reward, np.array with shape (1)
     
     # calculate the individual se of each network slices of the current learning window
     # indivifual_se : np.array with shape (3)
@@ -745,7 +763,7 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     # 紀錄相關結果
     QoE.append(qoe.tolist())
     SE.append(se[0])
-    rewards.append(reward)
+    rewards.append(reward[0])
     utilities.append(utility)
 
     writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
@@ -770,7 +788,7 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
     writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
     writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
-    writer.add_scalar(tag= 'reward', scalar_value= reward, global_step= frame)
+    writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
     writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
 
     # 準備做下一次的上層，取出 state
@@ -779,7 +797,7 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     observation = state_update(env.tx_pkt_no, env.ser_cat)
     
     # 將 experience 存入 replay buffer
-    model.append_to_replay(prev_observation, action, reward, observation)
+    model.append_to_replay(prev_observation, action, reward[0], observation)
 
     # 更新模型
     model.update(frame)
@@ -791,7 +809,7 @@ for frame in tqdm(range(1, total_timesteps + 1)):
     if not fixed_UE: env.user_move()
     
     
-    print(f'\n\nepisode: {frame}, epsilon: {epsilon:.3f}, utility: {utility}, reward: {reward:.5f}')
+    print(f'\n\nepisode: {frame}, epsilon: {epsilon:.3f}, utility: {utility}, reward: {reward[0]:.5f}')
     print(f'qoe: volte = {qoe[0]}, video = {qoe[1]}, urllc = {qoe[2]}')
     print('bandwidth-allocation solution', action_space[action])
 
@@ -847,7 +865,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/QoE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp3/QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -856,7 +874,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/SE.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp3/SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -865,7 +883,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/Utility.png")
+plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp3/Utility.png")
 
 print("Graph Saved")
 # %%

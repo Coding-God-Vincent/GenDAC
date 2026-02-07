@@ -6,18 +6,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Utils.LSTM_A2C_utils.utils import calc__reward
 from tqdm.auto import tqdm
+from Utils.seed import set_seed
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''環境參數'''
+set_seed(seed= 127)
 fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+exp_name = 'exp7'
+
 if fixed_UE: print("\n================================================== fixed_UE_env ==================================================\n")
 else: print("\n================================================== Moving_UE_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定圖片 / log 路徑'''
 algo_name = 'Hard_Slicing'
-exp_name = 'exp3'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -27,6 +30,9 @@ writer = SummaryWriter(log_dir= log_path)
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/Hard_Slicing/exp3/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+
+if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing") / exp_name
+else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing") / exp_name
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -152,7 +158,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp3/QoE.png")
+plt.savefig(image_path / "QoE.png")
 
 # se figure (figure(4))
 plt.figure(1)
@@ -161,7 +167,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp3/SE.png")
+plt.savefig(image_path / "SE.png")
 
 # utility figure (figure(5))
 plt.figure(2)
@@ -170,4 +176,4 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing/exp3/Utility.png")
+plt.savefig(image_path / "Utility.png")

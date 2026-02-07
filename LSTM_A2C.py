@@ -21,14 +21,14 @@ import torch
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''環境參數'''
 set_seed(seed= 123)
-fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== fixed_UE_env ==================================================\n")
 else: print("\n================================================== Moving_UE_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定圖片 / log 路徑'''
 algo_name = 'LSTM_A2C'
-exp_name = 'exp4'
+exp_name = 'exp5'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -36,8 +36,11 @@ writer = SummaryWriter(log_dir= log_path)
 
 # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/LSTM_A2C/exp3/tensorboard"
+# tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/LSTM_A2C/exp5/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+
+if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C") / f"{exp_name}"
+else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/LSTM_A2C") / f"{exp_name}"
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''LSTM-A2C Model & 相關函式'''
@@ -252,9 +255,9 @@ for frame in tqdm(range(1, total_timesteps+1)):
     next_state = np.vstack(lstm_buffer)  # lstm_buffer : np.array with shape (sequence_length, n_state)
     next_state = torch.from_numpy(next_state).to(device= DEVICE, dtype= torch.float32).unsqueeze(dim= 0)  # shape (1, sequence_length, n_state)
     qoe, se = env.get_reward()  # se : np.int with shape (1), qoe : np.array with shape (3)
-    utility, reward = utils.calc__reward(qoe= qoe, se= se[0])
+    utility, reward = utils.calc__reward(qoe= qoe, se= se)  # utility, reward : np.array with shape (1)
     v_values2 = Model.target_v(state= next_state).squeeze(dim= 1)  # (batch_size)
-    td_target = reward + gamma * v_values2
+    td_target = reward[0] + gamma * v_values2
     loss = Model.learn(state= state, action= torch.tensor(action, dtype= torch.long, device= DEVICE), td_target= td_target)
 
     # calculate the individual se of each network slices of the current learning window
@@ -263,11 +266,11 @@ for frame in tqdm(range(1, total_timesteps+1)):
     individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
 
     # print the outcome of the current learning window
-    print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward):.3f}, utility = {float(utility):.3f}, loss = {loss:.3f}")
+    print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, loss = {loss:.3f}")
 
     QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
     SEs.append(se.tolist()[0])  # se.tolist() -> [se]
-    Rewards.append(reward)
+    Rewards.append(reward[0])
     Utilities.append(utility.item())
 
     '''record on tensorboard'''
@@ -328,7 +331,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp4/QoE.png")
+plt.savefig(image_path / f"QoE.png")
 
 # se figure (figure(4))
 plt.figure(1)
@@ -337,7 +340,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp4/SE.png")
+plt.savefig(image_path / f"SE.png")
 
 # utility figure (figure(5))
 plt.figure(2)
@@ -346,7 +349,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C/exp4/Utility.png")
+plt.savefig(image_path / f"Utility.png")
 
 # loss figure (figure(6))
 # plt.figure(6)

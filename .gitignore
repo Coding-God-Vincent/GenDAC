@@ -16,3 +16,12 @@ Logs/
 
 # 不上傳 Params
 Params/
+
+# 不上傳 Outcome
+Outcomes/
+
+# 不上傳 Graph Generator
+Graph_Generator/
+
+# 不上傳 Test
+Test/
