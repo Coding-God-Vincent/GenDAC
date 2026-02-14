@@ -15,14 +15,14 @@ from pprint import pprint
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定環境變數'''
 set_seed(seed= 123)
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''設定 tensorboard'''
 algo_name = 'PPO'
-exp_name = 'exp3'
+exp_name = 'exp5'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer

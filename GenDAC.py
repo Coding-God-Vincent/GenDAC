@@ -27,17 +27,20 @@ from Utils.seed import set_seed
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 DDIM = False  # True if using DDIM
 
+# seeds = [124, 125, 126, 127]
+# exps = ['exp32', 'exp33', 'exp34', 'exp35']
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+
 # 環境參數
 set_seed(seed= 123)
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'GenDAC'
-exp_name = 'exp13'
+exp_name = 'exp35'
 
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
@@ -188,7 +191,7 @@ state_dim = len(ser_cat)
 action_dim = len(ser_cat)
 max_action = 1
 beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
-denoise_step = 7  # 6
+denoise_step = 1  # 1 -> best in fixedUE、5 -> best in movingUE
 actor_lr = 0.001
 critic_lr = 0.001
 weight_decay = 0
@@ -264,6 +267,7 @@ d2ac_opt = D2AC_OPT(
     device= device,
     n_steps= 3,  
     with_rec_loss= True,
+    recon_param= 1,
     # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
     action_space= fake_action_space
 )

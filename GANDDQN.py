@@ -48,7 +48,7 @@ from pathlib import Path
 
 # set_seed(seed= 123)
 set_seed(seed= 321)
-fixed_UE = False  # True if using GANDDQN env, False if LSTM_A2C env
+fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
 if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
 else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
@@ -56,7 +56,7 @@ else: print("\n================================================== LSTM-A2C_env =
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # 設定圖片 / log 路徑
 algo_name = 'GANDDQN'
-exp_name = 'exp3'
+exp_name = 'exp8'
 log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
 log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
 # generate log writer
@@ -66,6 +66,9 @@ writer = SummaryWriter(log_dir= log_path)
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/"algo_name"/"exp_name"/tensorboard"
 # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GANDDQN/exp6/tensorboard"
 # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+
+if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN") / f"{exp_name}"
+else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN") / f"{exp_name}"
 
 #=============================================================================================================================================#
 #%%  # 就像 Ipynb 一樣的功能，把程式碼切成一個一個的 Cell
@@ -853,7 +856,7 @@ ma_utility = moving_average(utilities_, window_size = 200)
 
 # loss figure (figure(2))
 model.plot_loss()
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN/exp7/loss.png")
+plt.savefig(image_path / f"loss.png")
 
 # qoe figure (figure(3))
 plt.figure(3)
@@ -865,7 +868,7 @@ plt.plot(ma_qoe_volte)
 plt.plot(ma_qoe_embb)
 plt.plot(ma_qoe_urllc)
 plt.legend(["VoLTE", "Video", "URLLC"])
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp3/QoE.png")
+plt.savefig(image_path / f"QoE.png")
 
 # se figure (figure(4))
 plt.figure(4)
@@ -874,7 +877,7 @@ plt.title('SE')
 plt.xlabel('Episode')
 plt.ylabel('bits/Hz')
 plt.plot(ma_SE)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp3/SE.png")
+plt.savefig(image_path / f"SE.png")
 
 # utility figure (figure(5))
 plt.figure(5)
@@ -883,7 +886,7 @@ plt.title('Utility')
 plt.xlabel("Episode")
 plt.ylabel("utility")
 plt.plot(ma_utility)
-plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN/exp3/Utility.png")
+plt.savefig(image_path / f"Utility.png")
 
 print("Graph Saved")
 # %%

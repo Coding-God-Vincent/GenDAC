@@ -24,18 +24,28 @@ color_lstm_a2c = 'tab:orange'
 color_ppo = 'tab:pink'
 color_sac = 'tab:cyan'
 
+fixed = False
+
+#--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+'''set path'''
+if fixed : 
+    csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine")
+    image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/6_algos")
+else:
+    csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine")
+    image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/6_algos")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Uitility'''
 # steps = np.arange(10000)
 
 # # 讀 csv 檔
-# d2ac_P1_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GenDAC_DDPM_5_csv/utility.csv")
-# ganddqn_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GANDDQN_csv/utility.csv")
-# hard_slicing_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Hard_Slicing_csv/utility.csv")
-# lstm_a2c_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/LSTM_A2C_csv/utility.csv")
-# ppo_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/PPO_csv/utility.csv")
-# sac_utility = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/SAC_csv/utility.csv")
+# d2ac_P1_utility = pd.read_csv(csv_path / f"GenDAC_DDPM_5_csv/utility.csv")
+# ganddqn_utility = pd.read_csv(csv_path / f"GANDDQN_csv/utility.csv")
+# hard_slicing_utility = pd.read_csv(csv_path / f"Hard_Slicing_csv/utility.csv")
+# lstm_a2c_utility = pd.read_csv(csv_path / f"LSTM_A2C_csv/utility.csv")
+# ppo_utility = pd.read_csv(csv_path / f"PPO_csv/utility.csv")
+# sac_utility = pd.read_csv(csv_path / f"SAC_csv/utility.csv")
 
 # # 算出上下界
 # smooth_d2ac_P1 = ema(d2ac_P1_utility['Value'], weight= 0.9)
@@ -69,7 +79,7 @@ color_sac = 'tab:cyan'
 # plt.xlabel('Episode')
 # plt.ylabel('utility')
 # # D2AC_P1
-# plt.plot(smooth_d2ac_P1, label= 'D2AC_P1', color= color_d2ac, zorder= 7)
+# plt.plot(smooth_d2ac_P1, label= 'GenDAC', color= color_d2ac, zorder= 7)
 # plt.fill_between(x= steps, y1= lower_d2ac_P1, y2= upper_d2ac_P1, color= color_d2ac, alpha= alpha)
 # # GANDDQN
 # plt.plot(smooth_ganddqn, label= 'GANDDQN', color= color_ganddqn, zorder= 4)
@@ -92,22 +102,24 @@ color_sac = 'tab:cyan'
 #     handletextpad= 0.5,  # 圖示與文字之間的間距
 #     borderaxespad= 0.5,  # 圖例框與邊框的間距
 #     # ncol= 1  # 2 : 橫向、1 : 垂直
-#     loc= 'lower left'
+#     loc= 'lower right'
 # ).set_zorder(10)
-# plt.savefig('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/6_algos/Utility_fixedUE')
+
+# if fixed: plt.savefig(image_path / f"Utility_fixedUE")
+# else: plt.savefig(image_path / f"Utility_movingUE")
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''SE'''
 # steps = np.arange(10000)
 
-# # 讀 csv 檔
-# d2ac_P1_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GenDAC_DDPM_5_csv/se.csv")
-# ganddqn_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/GANDDQN_csv/se.csv")
-# hard_slicing_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Hard_Slicing_csv/se.csv")
-# lstm_a2c_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/LSTM_A2C_csv/se.csv")
-# ppo_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/PPO_csv/se.csv")
-# sac_se = pd.read_csv("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/SAC_csv/se.csv")
+# # # 讀 csv 檔
+# d2ac_P1_se = pd.read_csv(csv_path / f"GenDAC_DDPM_5_csv/se.csv")
+# ganddqn_se = pd.read_csv(csv_path / f"GANDDQN_csv/se.csv")
+# hard_slicing_se = pd.read_csv(csv_path / f"Hard_Slicing_csv/se.csv")
+# lstm_a2c_se = pd.read_csv(csv_path / f"LSTM_A2C_csv/se.csv")
+# ppo_se = pd.read_csv(csv_path / f"PPO_csv/se.csv")
+# sac_se = pd.read_csv(csv_path / f"SAC_csv/se.csv")
 
 # # 算出上下界
 # smooth_d2ac_P1 = ema(d2ac_P1_se['Value'], weight= 0.9)
@@ -141,7 +153,7 @@ color_sac = 'tab:cyan'
 # plt.xlabel('Episode')
 # plt.ylabel('SE')
 # # D2AC_P1
-# plt.plot(smooth_d2ac_P1, label= 'D2AC_P1', color= color_d2ac, zorder= 7)
+# plt.plot(smooth_d2ac_P1, label= 'GenDAC', color= color_d2ac, zorder= 7)
 # plt.fill_between(x= steps, y1= lower_d2ac_P1, y2= upper_d2ac_P1, color= color_d2ac, alpha= alpha)
 # # GANDDQN
 # plt.plot(smooth_ganddqn, label= 'GANDDQN', color= color_ganddqn, zorder= 4)
@@ -165,18 +177,18 @@ color_sac = 'tab:cyan'
 #     handletextpad= 0.5,  # 圖示與文字之間的間距
 #     borderaxespad= 0.5,  # 圖例框與邊框的間距
 #     # ncol= 1  # 2 : 橫向、1 : 垂直
-#     loc= 'lower left'
+#     loc= 'lower right'
 # ).set_zorder(10)
 
-# plt.savefig('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/6_algos/SE_fixedUE')
+# if fixed: plt.savefig(image_path / f"SE_fixedUE")
+# else: plt.savefig(image_path / f"SE_movingUE")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''QoE'''
 
 # Hyperparameters
-current_qoe = 'qoe_embb_general'  # qoe_embb_general, qoe_urllc, qoe_volte
-fixed= True
-algo1 = 'GenDAC_DDPM_5'
+current_qoe = 'qoe_volte'  # qoe_embb_general, qoe_urllc, qoe_volte
+algo1 = 'GenDAC_DDPM_1'
 algo2 = 'GANDDQN'
 algo3 = 'Hard_Slicing'
 algo4 = 'LSTM_A2C'
@@ -245,7 +257,7 @@ plt.title(title)
 plt.xlabel('Episode')
 plt.ylabel('SSR')
 # D2AC_P1
-plt.plot(smooth_d2ac_P1, label= 'D2AC_P1', color= color_d2ac, zorder= 7)
+plt.plot(smooth_d2ac_P1, label= 'GenDAC', color= color_d2ac, zorder= 10)
 plt.fill_between(x= steps, y1= lower_d2ac_P1, y2= upper_d2ac_P1, color= color_d2ac, alpha= alpha)
 # GANDDQN
 plt.plot(smooth_ganddqn, label= 'GANDDQN', color= color_ganddqn, zorder= 4)
@@ -257,10 +269,10 @@ plt.fill_between(x= steps, y1= lower_hard_slicing, y2= upper_hard_slicing, color
 plt.plot(smooth_lstm_a2c, label= 'LSTM-A2C', color= color_lstm_a2c, zorder= 6)
 plt.fill_between(x= steps, y1= lower_lstm_a2c, y2= upper_lstm_a2c, color= color_lstm_a2c, alpha= alpha)
 # PPO
-plt.plot(smooth_ppo, label= 'PPO', color= color_ppo)
+plt.plot(smooth_ppo, label= 'PPO', color= color_ppo, zorder = 9)
 plt.fill_between(x= steps, y1= lower_ppo, y2= upper_ppo, color= color_ppo, alpha= alpha)
 # SAC
-plt.plot(smooth_sac, label= 'SAC', color= color_sac)
+plt.plot(smooth_sac, label= 'SAC', color= color_sac, zorder = 8)
 plt.fill_between(x= steps, y1= lower_sac, y2= upper_sac, color= color_sac, alpha= alpha)
 
 plt.legend(
@@ -269,7 +281,7 @@ plt.legend(
     handletextpad= 0.5,  # 圖示與文字之間的間距
     borderaxespad= 0.5,  # 圖例框與邊框的間距
     # ncol= 1  # 2 : 橫向、1 : 垂直
-    loc= 'lower left'
+    loc= 'lower right'
 ).set_zorder(10)
 plt.savefig(image_path)
 

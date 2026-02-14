@@ -49,60 +49,58 @@ def generate_csv(EA, original_csv_path, target_tags):
 # 1. 取出各演算法各指標的 csv 檔到指定位址
 
 '''hyperparameters'''
+fixed = False
 # 要取出的指標的值
-# target_tags = [
-#     'qoe/volte', 'qoe/embb_general', 'qoe/urllc', 
-#     'se', 'reward', 'utility', 
-#     'observationBits/volte', 'observationBits/embb_general', 'observationBits/urllc',
-#     'individual_se/embb_general', 'individual_se/volte', 'individual_se/urllc',
-#     'action/embb_general', 'action/volte', 'action/urllc',
-#     # 'idle_frame'
-# ]
+target_tags = [
+    'qoe/volte', 'qoe/embb_general', 'qoe/urllc', 
+    'se', 'reward', 'utility', 
+    'observationBits/volte', 'observationBits/embb_general', 'observationBits/urllc',
+    'individual_se/embb_general', 'individual_se/volte', 'individual_se/urllc',
+    'action/embb_general', 'action/volte', 'action/urllc',
+    # 'idle_frame'
+]
 # target_tags = ['qoe/volte', 'qoe/embb_general', 'qoe/urllc', 'se', 'utility']
-target_tags = ['utility']
+# target_tags = ['utility']
+
+
+if fixed: file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
+else: file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine')
+
 
 
 '''*****algo1 : GenDAC'''
-# # 想將 tensorboard 中的 event 內容轉成各個 csv 檔後放在 : /home/super_trumpet/NCKU/Paper/My Methodology/Outcome/Combine/D2AC_csv 中
-# # 例如 utility.csv 會放在 /home/super_trumpet/NCKU/Paper/My Methodology/Outcome/Combine/D2AC_csv/utility.csv
-# algo_name = 'GenDAC_DDPM_5'
+# 想將 tensorboard 中的 event 內容轉成各個 csv 檔後放在 : /home/super_trumpet/NCKU/Paper/My Methodology/Outcome/Combine/D2AC_csv 中
+# 例如 utility.csv 會放在 /home/super_trumpet/NCKU/Paper/My Methodology/Outcome/Combine/D2AC_csv/utility.csv
+# algo_name = 'GenDAC_DDPM_7'
 # # # file_path : 要存所有 .csv 檔的位址 (還沒依照算法分資料夾) (Instance of Path)
-# file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
-# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard/events.out.tfevents.1769329654.SuperTrumpet.5235.0'
+# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp27/tensorboard/events.out.tfevents.1769681511.SuperTrumpet.72555.0'
 # # 按照各指標將結果存入各種不同的 csv 檔
 # generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 
-
-
 '''*****algo2 : GANDDQN'''
 # algo_name = 'GANDDQN'
-# file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
-# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GANDDQN/exp7/tensorboard/events.out.tfevents.1769439467.SuperTrumpet.131409.0'
+# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GANDDQN/exp3/tensorboard/events.out.tfevents.1770397913.SuperTrumpet.162236.0'
 # generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 
 '''****algo3 : LSTM_A2C'''
 # algo_name = 'LSTM_A2C'
-# file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
-# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/LSTM_A2C/exp4/tensorboard/events.out.tfevents.1769498585.SuperTrumpet.355707.0'
+# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/LSTM_A2C/exp5/tensorboard/events.out.tfevents.1770369795.SuperTrumpet.68656.0'
 # generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 
 '''****algo4 : Hard-Slicing (沒有紀錄 reward，記得把 tags 中的 reward 弄掉)''' 
-algo_name = 'Hard_Slicing_TC/exp7'
-file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine')
-event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/Hard_Slicing/exp7/tensorboard/events.out.tfevents.1770113665.SuperTrumpet.67404.3'
-generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
+# algo_name = 'Hard_Slicing_TC/exp7'
+# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/Hard_Slicing/exp7/tensorboard/events.out.tfevents.1770113665.SuperTrumpet.67404.3'
+# generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 '''****algo5 : SAC'''
 # algo_name = 'SAC'
-# file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
-# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/SAC/exp5/tensorboard/events.out.tfevents.1769523551.SuperTrumpet.451036.0'
+# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/SAC/exp3/tensorboard/events.out.tfevents.1770226647.SuperTrumpet.591254.0'
 # generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)
 
 '''****algo6 : PPO'''
 # algo_name = 'PPO'
-# file_path = Path('/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine')
-# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/PPO/exp4/tensorboard/events.out.tfevents.1769504617.SuperTrumpet.384040.0'
+# event_path = '/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/PPO/exp2/tensorboard/events.out.tfevents.1770237729.SuperTrumpet.645971.0'
 # generate_csv(EA= generate_EA(event_path= event_path), original_csv_path= generate_original_csv_path(algo_name= algo_name, file_path= file_path), target_tags= target_tags)

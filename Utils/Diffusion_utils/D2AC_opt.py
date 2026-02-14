@@ -34,6 +34,7 @@ class D2AC_OPT(BasePolicy):
         # noise ~ std of gaussian dist. noise will be added to action to enhance exploration
         exploration_noise : float = 0.1,
         with_rec_loss : bool = True,
+        recon_param : int = 1,
         **kwargs : any
     ):
         super().__init__(**kwargs)
@@ -55,6 +56,7 @@ class D2AC_OPT(BasePolicy):
         self.lr_max_step = lr_max_step
         self.noise_generator = GaussianNoise(sigma= exploration_noise)
         self.with_rec_loss = with_rec_loss
+        self.recon_param = recon_param
         
         # if we want to decay the lr, use CosineAnnealingLR
         if lr_decay:
@@ -209,7 +211,7 @@ class D2AC_OPT(BasePolicy):
         # torch.tensor with shape(), not shape (1)
         policy_loss = -self.critic.q_min(state= state, action= action).mean()  
         
-        if self.with_rec_loss: actor_loss = policy_loss + 1 * recon_loss
+        if self.with_rec_loss: actor_loss = policy_loss + self.recon_param * recon_loss
         else: actor_loss = policy_loss
 
         if update:
