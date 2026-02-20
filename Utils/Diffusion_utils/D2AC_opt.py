@@ -26,7 +26,7 @@ class D2AC_OPT(BasePolicy):
         critic_optim : torch.optim.Optimizer,
         device : torch.device,
         tau : float = 0.005,  # soft_update param.
-        gamma : float = 0.99,  # 因為我的問題屬於 Contextual Bandit 問題，即當前決策只與當前狀態有關，跟下一個狀態都無關，故 Greedy 為最佳策略，gamma 應該要設為 0
+        gamma : float = 0.99,
         reward_normalization : bool = False,
         n_steps : int = 1,  # use n_step return as Target
         lr_decay : bool = False,
@@ -231,6 +231,36 @@ class D2AC_OPT(BasePolicy):
 
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+    # 純工具函式，不依賴於本 class，故標上 @staticmethod
+    # params : actor.parameters()
+    # eps : 判斷是否為 alive 的 threshold
+    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#    def _grad_stats(params, eps: float = 1e-12):
+    @staticmethod
+    def _grad_stats(params, eps: float = 1e-12):
+        """
+        Return:
+          grad_norm_sum: sum of parameter grad norms -> 看出梯度的強度
+          grad_coverage: fraction of params that have "effective" gradient -> 梯度覆蓋的範圍。梯度強度強有可能只有少數幾個參數有大梯度而已
+        """
+        grad_norm_sum = 0.0
+        total = 0
+        active = 0
+
+        for p in params:
+            if p.grad is None:  # 被 detach 掉的梯度
+                continue
+            total += 1  # 有用到的梯度
+            grad_norm_sum += p.grad.norm().item()
+            # 一層 nn.Linear 就是一塊 tensor。只要一塊 tensor 中有一個參數是 active 就好
+            # coverage：只要這個 tensor 內有任何一個元素的 |grad| > eps 就算 active
+            if p.grad.detach().abs().max().item() > eps:
+                active += 1
+
+        grad_coverage = (active / total) if total > 0 else 0.0
+        return grad_norm_sum, grad_coverage
+    
+
+    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # 傳入一個 batch 的資料並更新所有網路的更新，最後回傳該 batch 的 Actor loss & Critic loss (in dict)
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     '''essential in BasePolicy'''
@@ -240,20 +270,41 @@ class D2AC_OPT(BasePolicy):
     ):
         # update DoubleCritic through batch
         critic_loss = self.update_critic(batch= batch)
-        # update Actor through batch
+        # evaluate actor_loss, policy_loss, recon_loss
         actor_loss, policy_loss, recon_loss = self.update_policy(batch= batch, update= False)
+
+        # verify the proportion of the effective gradient
+        # ===== (A) policy_loss 的 actor grad norm =====
+        self.actor_optim.zero_grad(set_to_none=True)
+        policy_loss.backward(retain_graph=True)  # 因為要對一個運算圖算多次，預設是 false，算完一次之後就會釋放掉
+        grad_norm_policy, grad_cov_policy = self._grad_stats(params= self.actor.parameters())
+        self.critic.zero_grad(set_to_none=True)  # 會污染到 Critic 梯度，故清掉
+        # ===== (B) recon_loss 的 actor grad norm =====
+        self.actor_optim.zero_grad(set_to_none=True)
+        recon_loss.backward(retain_graph=True)
+        grad_norm_rec, grad_cov_rec = self._grad_stats(params= self.actor.parameters())
+        self.critic.zero_grad(set_to_none=True)  # 會污染到 Critic 梯度，故清掉
+        # 清掉，避免污染真正更新
+        self.actor_optim.zero_grad(set_to_none=True)
+
+        
+        # update Actor through batch
         self.actor_optim.zero_grad()
         actor_loss.backward()
         self.actor_optim.step()
         # update all target networks
         self.update_target_networks()
 
-        # return actor loss & critic loss via dict
+        
         return {
-            'critic_loss' : critic_loss,  # torch.tensor with shape ()
-            'actor_loss' : actor_loss,  # torch.tensor with shape ()
-            'policy_loss' : policy_loss,
-            'recon_loss' : recon_loss
+            'grad_norm_rec': grad_norm_rec,
+            'grad_norm_policy': grad_norm_policy,
+            'grad_cov_rec': grad_cov_rec,
+            'grad_cov_policy': grad_cov_policy,
+            'critic_loss': critic_loss,  # torch.tensor shape ()
+            'actor_loss': actor_loss,    # torch.tensor shape ()
+            'policy_loss': policy_loss,
+            'recon_loss': recon_loss
         }
     
 
@@ -297,10 +348,11 @@ class D2AC_OPT(BasePolicy):
         # unclampped and not converted to the actual action (proportion of the resource) yet
         unclampped_logits = self.actor.observe_reverse_process(state= state)
         # 想看沒 reconstruction loss 時，沒 clamp 的 logits 最低最高以及絕對平均值為何，因為結果來看他們都會梯度死亡，所以預期這些值都會超過 max_action (1)
+        # 算出有無加上 reconstruction loss 時他們超過 [-max_action, max_action] 的比例為何
+        legal_mask = torch.abs(unclampped_logits) < 1
         observe_unclampped_logits = {
-            'unclampped_logits_absmin' : torch.min(torch.abs(unclampped_logits)).item(),
-            'unclampped_logits_max' : torch.max(unclampped_logits).item(),
-            'unclampped_logits_absmean' : torch.mean(torch.abs(unclampped_logits)).item(),
+            # 'unclampped_logits_absmin' : torch.min(torch.abs(unclampped_logits)).item(),
+            'unclampped_logits_legal_rates' : legal_mask.float().mean().item()
         }
         
         return observe_unclampped_logits

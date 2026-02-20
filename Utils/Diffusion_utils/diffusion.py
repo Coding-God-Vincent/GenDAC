@@ -69,10 +69,10 @@ class Diffusion(nn.Module):
         alphas_cumprod = torch.cumprod(alphas, dim= 0)
         # alphas_cumprod_prev[t] = alphas_cumprod[t-1] = alpha_bar_(t-1)
         # alphas_cumprod_prev = [1, alphas_cumprod[0], alphas_cumprod[1], ..., alphas_cumprod[t-2]] (t: denoise_steps)
-        alphas_cumprod_prev = torch.cat([torch.tensor([1]), alphas_cumprod[:-1]])  # alphas_cumprod[:-1] = [alphas_cumprod[0], alphas_cumprod[1], ..., alphas_cumprod[t-2]]
+        alphas_cumprod_prev = torch.cat([torch.tensor([1], dtype= alphas_cumprod.dtype, device= alphas_cumprod.device), alphas_cumprod[:-1]])  # alphas_cumprod[:-1] = [alphas_cumprod[0], alphas_cumprod[1], ..., alphas_cumprod[t-2]]
         
         self.register_buffer('alphas', alphas)
-        self.register_buffer('batas', betas)
+        self.register_buffer('betas', betas)
         self.register_buffer('alphas_cumprod_prev', alphas_cumprod_prev)
         #-------------------------------------------------------------------------------------------------------------------------------------------#
         # pre-calculate some quantities using in forward and reverse process
@@ -104,8 +104,8 @@ class Diffusion(nn.Module):
         self.register_buffer('posterior_log_variance_clipped', torch.log(torch.clamp(posterior_variance, min= 1e-20)))
         # 2. mean of the posterior distritbution q(x_(t-1)|x_t, x_0) & p(x_(t-1)|x_t, x_0_hat) for each t
         # mean(x_t | x_0) = coef1 * x_0 + coef2 * x_t
-        self.register_buffer('posterior_mean_coef1', betas * np.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod))
-        self.register_buffer('posterior_mean_coef2', (1. - alphas_cumprod_prev) * np.sqrt(alphas) / (1. - alphas_cumprod))
+        self.register_buffer('posterior_mean_coef1', betas * torch.sqrt(alphas_cumprod_prev) / (1. - alphas_cumprod))
+        self.register_buffer('posterior_mean_coef2', (1. - alphas_cumprod_prev) * torch.sqrt(alphas) / (1. - alphas_cumprod))
     
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -138,7 +138,7 @@ class Diffusion(nn.Module):
         x_0_hat = self.x_0_hat(x_t= x_t, t= t, predicted_noise_GDM= self.model(state= state, x_t= x_t, time= t))
         # clip x_0_hat in [-max_action, max_action]
         # clamp_ -> in-place, clamp -> return new tensor (but preserve gradient), torch.clamp() is recommanded
-        if self.clip_denoised: x_0_hat.clamp(-self.max_action, self.max_action)
+        if self.clip_denoised: x_0_hat = x_0_hat.clamp(-self.max_action, self.max_action)
         # use tanh to provide more smooth gradient
         # if self.clip_denoised: x_0_hat = torch.tanh(x_0_hat)
 
@@ -223,9 +223,9 @@ class Diffusion(nn.Module):
             if not self.DDIM: x_next = self.DDPM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
             # DDIM
             else: x_next = self.DDIM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
-        
+            x_t = x_next
         # return torch.tanh(x_next)
-        return torch.clamp(x_next, -self.max_action, self.max_action)
+        return torch.clamp(x_t, -self.max_action, self.max_action)
     
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -296,5 +296,5 @@ class Diffusion(nn.Module):
             if not self.DDIM: x_next = self.DDPM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
             # DDIM
             else: x_next = self.DDIM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
-        
-        return x_next
+            x_t = x_next
+        return x_t

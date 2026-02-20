@@ -37,7 +37,8 @@ class GDM(nn.Module):
         self.state_mlp = nn.Sequential(
             nn.Linear(in_features= state_dim, out_features= hidden_dim),
             act(),
-            nn.Linear(in_features= hidden_dim, out_features= hidden_dim)
+            nn.Linear(in_features= hidden_dim, out_features= hidden_dim),
+            act()
         )
 
         # Time Embedding Layer (output_shape (batch_size, t_dim))
@@ -96,7 +97,8 @@ class DoubleCritic(nn.Module):
         self.state_mlp = nn.Sequential(
             nn.Linear(in_features= state_dim, out_features= hidden_dim),
             act(),
-            nn.Linear(in_features= hidden_dim, out_features= hidden_dim)
+            nn.Linear(in_features= hidden_dim, out_features= hidden_dim),
+            act()
         )
 
         # Q1
@@ -122,6 +124,7 @@ class DoubleCritic(nn.Module):
         total_input = torch.cat([embedding_state, action], dim= 1)  # shape (batch_size, hidden_dim + action_dim)
         return self.Q_network1(total_input), self.Q_network2(total_input)
     
+    # shape (batch_size, 1)
     def q_min(self, state, action):
         return torch.min(*self.forward(state, action))
 
