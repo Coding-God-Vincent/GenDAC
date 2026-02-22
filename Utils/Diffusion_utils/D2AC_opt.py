@@ -318,9 +318,9 @@ class D2AC_OPT(BasePolicy):
         buffer: ReplayBuffer
     ):
         # sample a batch of data from buffer
-        batch, indices = buffer.sample(batch_size= sample_size)
+        batch, indicies = buffer.sample(batch_size= sample_size)
         # compute TD_Target of each data in the batch
-        batch = self.process_fn(batch= batch, buffer= buffer, indices= indices)
+        batch = self.process_fn(batch= batch, buffer= buffer, indices= indicies)
         # update each network via extracted batch
         # result -> loss of each network, 
         result = self.learn(batch= batch)
