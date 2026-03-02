@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from Env.env_fixedUE import cellularEnv
 from Env.env_movingUE import EnvMove
 from tianshou.data import Batch, ReplayBuffer
+from gymnasium.spaces import Discrete, Box  # In order to use BasePolicy
 from pathlib import Path
 from pprint import pprint
 from Utils.seed import set_seed
@@ -47,6 +48,12 @@ for fixed in fixed_or_not:
         log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
 
+        # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
+        # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
+        # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/MlpAC/exp1/tensorboard"
+        # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+
+        
         writer = SummaryWriter(log_dir= log_path)
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env") / algo_name / f"{exp_name}"
@@ -131,6 +138,8 @@ for fixed in fixed_or_not:
         critic_optim = torch.optim.Adam(critic.parameters(), lr= critic_lr)
 
         # initialize elements
+        fake_action_space = Discrete(3)
+        fake_action_space = Box(low= -1, high= 1, shape= (3,))
         buffer = ReplayBuffer(size= buffer_size)
         mlp_opt = MlpAC_opt(
             actor= actor,
@@ -140,7 +149,9 @@ for fixed in fixed_or_not:
             device= device,
             state_dim= state_dim,
             action_dim= action_dim,
-            alpha_lr= alpha_lr
+            alpha_lr= alpha_lr,
+            # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
+            action_space= fake_action_space
         )
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

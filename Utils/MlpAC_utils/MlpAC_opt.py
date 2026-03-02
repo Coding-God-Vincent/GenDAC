@@ -39,6 +39,7 @@ class MlpAC_opt(BasePolicy):
         self.gamma = gamma
         self.tau = tau
         self.n_step = n_step
+        self.lr_decay = lr_decay
         
         # Auto-Tuning Alpha (2018 SAC) : proportion of the entropy
         # alpha must be positive so we use log-exp trick here as well

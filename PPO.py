@@ -16,10 +16,10 @@ from pprint import pprint
 seeds_fixed = [123, 124, 125, 126, 127]
 exps_fixed = ['exp10', 'exp11', 'exp12', 'exp13', 'exp14']
 
-seeds_moving = [124, 125, 126, 127]
-exps_moving = ['exp8', 'exp9', 'exp10', 'exp11']
+seeds_moving = [126, 127]
+exps_moving = ['exp10', 'exp11']
 
-fixed_or_not = [True, False]
+fixed_or_not = [False]
 
 for fixed in fixed_or_not:
     
@@ -31,6 +31,7 @@ for fixed in fixed_or_not:
         exps = exps_moving
         
     for i in range(len(seeds)):
+        print(f"It's {exps[i]}, seeds {seeds[i]}")
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''設定環境變數'''
         set_seed(seed= seeds[i])

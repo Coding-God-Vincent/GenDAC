@@ -39,10 +39,11 @@ for fixed in fixed_or_not:
         exps = exps_moving
 
     for i in range(len(seeds)):
+        print(f"It's {exps[i]}, seeds {seeds[i]}")
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''設定環境變數'''
         set_seed(seed= seeds[i])
-        fixed_UE = True  # True if using GANDDQN env, False if LSTM_A2C env
+        fixed_UE = fixed  # True if using GANDDQN env, False if LSTM_A2C env
         if fixed_UE: print("\n================================================== GANDDQN_env ==================================================\n")
         else: print("\n================================================== LSTM-A2C_env ==================================================\n")
 
