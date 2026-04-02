@@ -15,23 +15,17 @@ from Utils.seed import set_seed
 from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
-seeds_fixed = [123, 124, 125, 126, 127]
-exps_fixed = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-
-seeds_moving = [123, 124, 125, 126, 127]
-exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-
+exps_fixed = ['exp12', 'exp13', 'exp14', 'exp15', 'exp16']
+exps_moving = ['exp12', 'exp13', 'exp14', 'exp15', 'exp16']
+seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [True, False]
+hard_scenario = True
 
-for fixed in fixed_or_not:
-    
-    if fixed == True : 
-        seeds = seeds_fixed
-        exps = exps_fixed
-    else:
-        seeds = seeds_moving
-        exps = exps_moving
-        
+for fixed in fixed_or_not:  
+
+    if fixed: exps = exps_fixed
+    else: exps = exps_moving
+
     for i in range(len(seeds)):
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # 環境設定
@@ -88,18 +82,32 @@ for fixed in fixed_or_not:
         # se : np.array with shape (1)
         # return : 
         # utility, reward : np.array with shape (1)
+        # def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+        #     standard = 0.98  
+        #     standard2 = 0.95  
+        #     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  
+        #     if qoe[1] >= standard and qoe[0] >= standard:
+        #         if qoe[2] >= standard2:
+        #             reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 100.0) * se[0])[0] / 10  
+        #         else:
+        #             reward = (qoe[2] - standard2) - 0.5  
+        #     else:
+        #         reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+        #     reward = np.array([reward])
+        #     return utility, reward
+
+        # 自創 reward function2 -> 就分兩種情況就好，一種是已經滿足所有 SSR，另一種是滿足所有 SSR 了。
+        # reward : shape (1), utility.shape (1)
+        # se : np.int with shape (1), qoe : np.array with shape (3)
         def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-            standard = 0.98  
-            standard2 = 0.95  
-            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  
-            if qoe[1] >= standard and qoe[0] >= standard:
-                if qoe[2] >= standard2:
-                    reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 100.0) * se[0])[0] / 10  
-                else:
-                    reward = (qoe[2] - standard2) - 0.5  
+            SLA_threshold = 0.95
+            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+            if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
+                reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
             else:
-                reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+                reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
             reward = np.array([reward])
+
             return utility, reward
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -156,16 +164,16 @@ for fixed in fixed_or_not:
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # generate the env
-        total_band = 10 * 10**6  
+        total_band = 20 * 10**6  
         qoe_weights = [1, 1, 1]  
         se_weight = 0.01  
-        total_timesteps = 10000  
+        total_timesteps = 10000
         learning_windows = 2000  
-        dl_mimo = 16  
+        dl_mimo = 3 
         UE_no = 100 if fixed_UE else 300
 
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= False)
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo)
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = True)
+        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = True)
 
         env.countReset()  
         if not fixed_UE: env.user_move()  
@@ -249,6 +257,15 @@ for fixed in fixed_or_not:
             if not fixed_UE: env.user_move()
             
         writer.add_hparams(hparam_dict= hparams_dict, metric_dict= {})
+
+        if fixed_UE:
+            torch.save(actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/MlpAC/actor_weights.pth')
+            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/MlpAC/critic_weights.pth')
+        else:
+            torch.save(actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/MlpAC/actor_weights.pth')
+            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/MlpAC/critic_weights.pth')
+
+
         print("Complete")
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

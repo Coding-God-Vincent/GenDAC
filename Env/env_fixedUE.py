@@ -8,6 +8,8 @@
     tx, rx power : dBW
     gain, loss   : dB (dB : relative unit, 10 x log_10 (A / B))
     in SNR       : W (dBW must turn into W ---> value_in_W = 10** (value_in_dBW / 10))
+4. sub-6 GHz : 所有使用的頻段皆在 6 GHz 之下 (可用頻寬 : 5~100 MHz) -> 可以傳的遠 (Path loss 較小，可以支援增益弱的收發器)
+    其他有 mmWave (所有使用頻段皆在 24 GHz 之上) : 可用頻寬 : 100 ~ 1000 MHz -> 沒辦法傳太遠 (Path loss 較大，一定要高增益的收發器)
 '''
 
 import numpy as np
@@ -40,6 +42,7 @@ class cellularEnv(object):
         chan_mod = '36814',
         
         # 用在說明使用的頻段的中心頻率，即使用哪一段的 spectrum
+        # 向這邊就是 2GHz 上下各 5 MHz，所以我這篇屬於 sub-6-GHz
         carrier_freq = 2 * 10 ** 9, # 2 GHz
         # 總共可用頻寬為 10MHz
         band_whole = 10 * 10 ** 6, # unit = Hz
@@ -62,14 +65,16 @@ class cellularEnv(object):
         dl_mimo = 32,
         # UE 端 (接收端) 的增益，跟距離無關，是硬體的能力 (結構)。可以把接收到的訊號的功率放大 20dB
         # rx = receive
-        rx_gain = 20,  # dB
+        rx_gain = 3,  # dB
 
         # RL 的學習視窗，可以想成是一個 episode。在這個 episode 中會更新模型數次
         # 可以得出一次訓練會要 60000 * 0.5ms = 30s
         # 在論文實驗設定中將 learning windows 設為 2000，由此，每 2000 * 0.5ms = 1s 會更新一次
         learning_windows = 60000,
 
-        hard_scenario = False
+        hard_scenario = False,
+
+        
     ):
     
         self.BS_tx_power = BS_tx_power
@@ -110,7 +115,7 @@ class cellularEnv(object):
         dis = np.sqrt(np.sum((BS_pos - UE_pos) **2 , axis = 1)) / 1000 # unit changes to km，為了要算 path loss
         
         # 根據 3GPP TR 36.814 的 path loss model (dis.unit = km)
-        # 回傳一個 shape 是 (UE_max_no, 1) 的 np.array，每一格都代表該 UE 的 path loss
+        # 回傳一個 shape 是 (UE_max_no, 1) 的 np.array，每一格都代表該 UE 的 path loss (照定義應該要是負的，但這邊把它定義成正的)
         self.path_loss = 145.4 + 37.5 * np.log10(dis).reshape(-1, 1)
 
         # RL 學習視窗，以 s 為單位，這邊可以推得就是 60000 * 0.0005 = 30s。代表一每 30s 更新一次參數
@@ -155,6 +160,14 @@ class cellularEnv(object):
         self.urllc_tolerable = 0
         # > 1ms 還沒傳完的 urllc 封包個數
         self.urllc_fail = 0
+        # 看一下一個 window 中有多少 slot 是沒人使用 urllc 服務的
+        self.volte_UE_slot = 0
+        # 看一下一個 window 中有多少 slot 是沒人使用 embb 服務的
+        self.embb_UE_slot = 0
+        # 看一下一個 window 中有多少 slot 是沒人使用 volte 服務的
+        self.urllc_UE_slot = 0
+        # 看一下是哪一種 Packet 被 violate，每一格對應一個 packet size : {6.4, 12.8, 19.2, 25.6, 32} KB 
+        self.urllc_violate_packet_size = np.zeros(5)
         
 
     #=======================================================================================================================================#
@@ -166,6 +179,39 @@ class cellularEnv(object):
             # 後面的 random.normal(...) 會產生出一個 (UE_max_no) 的 np.ndarray，內容為各 UE 的 shadow fading 值
             # 最後 reshape() 會將 shape 從 (UE_max_no) 轉成 (UE_max_no, 1)
             self.chan_loss = self.path_loss + np.random.normal(0, shadowing_var, self.UE_max_no).reshape(-1, 1)  
+
+    
+    #=======================================================================================================================================#
+    # 通道模型 (考慮大小尺度衰弱) : shape (UE_max_no, 1)。unit : dB
+    '''因為這邊 path loss 跟別人不一樣，別人是正的，我這邊是負的，為了維持 log 世界的和諧，我把 small scale 從一般定義的正的改成負的，維持 log 世界的相乘變相加'''
+    def channel_model_2(self): 
+        if self.chan_mod == '36814':
+            '''large-scale fading (unit : dB)'''
+            shadowing_var = 8  # log-normal shadowing with 8dB std。代表會有正負 8dB 的功率波動。
+            # path_loss.shape = (UE_max_no, 1)，為每一個 UE 會有的 path_loss
+            # 後面的 random.normal(...) 會產生出一個 (UE_max_no) 的 np.ndarray，內容為各 UE 的 shadow fading 值
+            # 最後 reshape() 會將 shape 從 (UE_max_no) 轉成 (UE_max_no, 1)
+            large_scale_loss_db = self.path_loss + np.random.normal(0, shadowing_var, self.UE_max_no).reshape(-1, 1)  # Positive in here but should be negative in normal def
+
+            '''small-scale fading (no unit)
+                代表著多重路徑干涉，有可能會使得通道狀況變好或變壞。此值越大代表通道況況越好。
+                h ~ CN(0, 1) & normalize to E[|h|^2] = 1
+                長期來看不變，只不過是短期讓 channel 有時好有時壞。
+            '''
+            # np.random.normal(loc : mean, scale : std)
+            h_real = np.random.normal(loc= 0, scale= np.sqrt(0.5), size= self.UE_max_no).reshape(-1, 1)  # shape (UE_max_no, 1)
+            h_img = np.random.normal(loc= 0, scale= np.sqrt(0.5), size= self.UE_max_no).reshape(-1, 1)  # shape (UE_max_no, 1)
+            h = h_real + 1j * h_img  # coefficient
+            small_scale_gain = np.abs(h) **2  # coefficient -> gain by square (h_real ** 2 + h_img ** 2)
+            # convert to dB (add 1e-30 to avoid log10(0))
+            small_scale_gain_db = -10 * np.log10(small_scale_gain + 1e-30)
+            
+            '''total channel loss considering large & small scale fading : 
+                In Linear : g = beta * |h|^2
+            '''
+            self.chan_loss = large_scale_loss_db + small_scale_gain_db
+
+
 
     #=======================================================================================================================================#
     # 排程模型 : 網路切片分 RB 給其 UE，下面所說的兩種分法是分配在均分給 Active Users 後剩餘的 RB
@@ -188,6 +234,12 @@ class cellularEnv(object):
             for i in range(ser_cat): 
                 UE_index = np.where((self.UE_buffer[0,:]!=0) & (self.UE_cat == self.ser_cat[i]))[0]  # 把 active 的 UE 編號取出放入 UE_index
                 UE_Active_No = len(UE_index)  # UE_Active_No 為 active 的 UE 個數
+                
+                # 想看每一個 slot 中各切片是不是都有封包要傳
+                if UE_Active_No == 0:
+                    if i == 0: self.volte_UE_slot += 1
+                    elif i == 1: self.embb_UE_slot += 1
+                    else: self.urllc_UE_slot += 1
                 
                 if UE_Active_No != 0:
                     RB_No = band_ser_cat[i] // (180 * 10**3)  # 把可用頻寬轉為 RB 個數 (1RB = 180KHz，LTE 定義) (// : 整數除法)
@@ -259,7 +311,9 @@ class cellularEnv(object):
     # 結算當前 timeslot 結束後的 buffer 情況，傳完的封包會將其對應的 latency 刪除，還沒傳完的會續留
     def provisioning(self):
         UE_index = np.where(self.UE_band != 0)  # 找出有被分配到頻寬的 UE
-        self.channel_model()  # 算出所有 UE 的通道狀況 (考慮大尺度衰弱後的通道，unit = dB) -> chan_loss (shape : (UE_max_no, 1))
+        self.channel_model()
+        # if self.hard_scenario : self.channel_model_2()  # 考慮大尺度衰弱和小尺度衰弱
+        # else: self.channel_model()  # 算出所有 UE 的通道狀況 (只慮大尺度衰弱後的通道，unit = dB) -> chan_loss (shape : (UE_max_no, 1))
         rx_power = 10 ** ((self.BS_tx_power - self.chan_loss + self.UE_rx_gain) / 10)  # 接收端收到的訊號的功率強度 (unit : W)，shape : (UE_max_no, 1)
         rx_power = rx_power.reshape(1, -1)[0]  # 把 shape 從 (UE_max_no, 1) 轉為 (1, UE_max_no) 再由 [0] 取出
 
@@ -339,7 +393,7 @@ class cellularEnv(object):
                     # 模擬突發封包
                     if self.hard_scenario == False:
                         self.UE_readtime[ue_index]  = np.random.exponential(180* 10 ** -3, [1, ue_index_Size]).squeeze()
-                    else: self.UE_readtime[ue_index]  = np.random.exponential(50* 10 ** -3, [1, ue_index_Size]).squeeze()  # Exponential Distribution with Mean = 50ms
+                    else: self.UE_readtime[ue_index]  = np.random.exponential(10* 10 ** -3, [1, ue_index_Size]).squeeze()  # Exponential Distribution with Mean = 50ms
 
         # 針對每個 UE 看是否要產生新的封包，封包大小的單位為 bits
         for ue_id in range(self.UE_max_no):  # 每次考慮一個 UE
@@ -361,7 +415,10 @@ class cellularEnv(object):
                             tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800  # 產生 800 bits 為 base 的 Pareto 分布的封包大小
                             if tmp_buffer_size > 2000:  # 封包大小至多 2000 bits，超過就改成 2000 bits
                                 tmp_buffer_size = 2000
-                        else: tmp_buffer_size = np.random.choice([0.256*10**6, 0.4096*10**6, 0.512*10**6, 0.576*10**6])
+                        else: 
+                            tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 6400  # 產生 6400 bits (800 bytes) 為 base 的 Pareto 分布的封包大小
+                            if tmp_buffer_size > 12800:  # 封包大小至多 12800 bits (1600 bytes)，超過就改成 12800 bits
+                                tmp_buffer_size = 12800
                         # tmp_buffer_size = np.random.choice([1*8*10**6, 2*8*10**6, 3*8*10**6, 4*8*10**6, 5*8*10**6])
                         self.UE_buffer[buf_ind, ue_id] = tmp_buffer_size
                         self.tx_bit_no[1] += tmp_buffer_size
@@ -375,7 +432,9 @@ class cellularEnv(object):
                         # if tmp_buffer_size > 5 * 10 **6:
                         #      tmp_buffer_size > 5 * 10 **6
                         # 小封包
-                        tmp_buffer_size = np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])  # {6.4, 12.8, 19.2, 25.6, 32} KB 
+                        
+                        if self.hard_scenario == False: tmp_buffer_size = np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])  # {6.4, 12.8, 19.2, 25.6, 32} KB 
+                        else: tmp_buffer_size = np.random.choice([16*8, 24*8, 32*8, 48*8, 64*8])  # {16, 24, 32, 48, 64} B
                         # 大封包
                         # tmp_buffer_size = np.random.choice([0.3*8*10**6, 0.4*8*10**6, 0.5*8*10**6, 0.6*8*10**6, 0.7*8*10**6])  # buffer_size 介於 0.3 ~ 0.7M Bytes
                         self.UE_buffer[buf_ind,ue_id] = tmp_buffer_size
@@ -383,7 +442,7 @@ class cellularEnv(object):
                         # 再產生一個 readtime
                         if self.hard_scenario == False:
                             self.UE_readtime[ue_id]  = np.random.exponential(180* 10 ** -3, 1).squeeze()
-                        else: self.UE_readtime[ue_id]  = np.random.exponential(50* 10 ** -3, 1).squeeze()  # Exponential Distribution with Mean = 50ms
+                        else: self.UE_readtime[ue_id]  = np.random.exponential(10* 10 ** -3, 1).squeeze()  # Exponential Distribution with Mean = 50ms
 
                     self.tx_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1  # 將記錄 learning window 中總封包總數的計數器 (tx_pkt_no) + 1
                     self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]  # 產生完新封包後馬上備份 UE_buffer 到 UE_buffer_backup
@@ -398,7 +457,7 @@ class cellularEnv(object):
                     else:  # urllc
                         if self.hard_scenario == False:
                             self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
-                        else: self.UE_readtime[ue_id] = np.random.exponential(50 * 10 ** -3, 1).squeeze()
+                        else: self.UE_readtime[ue_id] = np.random.exponential(10 * 10 ** -3, 1).squeeze()
                     # record the no. of the dropped packets
                     self.drop_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1    
 
@@ -490,9 +549,32 @@ class cellularEnv(object):
                         if (self.UE_latency[i, ue_id] == self.time_subframe):  # 封包只用一個 timeslot 就傳完
                             if (rate[ue_id] >= 10 * 10 ** 6) & (self.UE_latency[i, ue_id] <= 1 * 10 **(-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
+                            else:  # 想看 urllc 是哪種大小的封包 fail
+                                if self.UE_buffer_backup[i, ue_id] == 6.4*8*10**3:
+                                    self.urllc_violate_packet_size[0] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 12.8*8*10**3:
+                                    self.urllc_violate_packet_size[1] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 19.2*8*10**3:
+                                    self.urllc_violate_packet_size[2] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 25.6*8*10**3:
+                                    self.urllc_violate_packet_size[3] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 32*8*10**3:
+                                    self.urllc_violate_packet_size[4] += 1
                         else:  # 封包用不只一個 timeslot 才傳完
                             if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 10 * 10 ** 6) & (self.UE_latency[i, ue_id] <= 1 * 10 **(-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
+                            else:  # 想看 urllc 是哪種大小的封包 fail
+                                if self.UE_buffer_backup[i, ue_id] == 6.4*8*10**3:
+                                    self.urllc_violate_packet_size[0] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 12.8*8*10**3:
+                                    self.urllc_violate_packet_size[1] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 19.2*8*10**3:
+                                    self.urllc_violate_packet_size[2] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 25.6*8*10**3:
+                                    self.urllc_violate_packet_size[3] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 32*8*10**3:
+                                    self.urllc_violate_packet_size[4] += 1
+
 
     #=======================================================================================================================================#
     # 一個 Learning window 只會執行準備要更新模型時的那一次
@@ -524,6 +606,13 @@ class cellularEnv(object):
         individual_se = self.individual_se / (self.learning_windows / self.time_subframe)  # 維持原論文的設定 (不考慮 idle_frame)
 
         return individual_se, self.urllc_perfect, self.urllc_tolerable, self.urllc_fail, self.idle_frame
+
+    
+    #=======================================================================================================================================#
+    '''回傳觀測用的值 2'''
+    def eval_get_obs2(self):
+        return self.volte_UE_slot, self.embb_UE_slot, self.urllc_UE_slot, self.urllc_violate_packet_size
+        
 
     #=======================================================================================================================================#
     # 於每個 timeslot 結束後依照 UE_buffer 清理 UE_buffer_backup & UE_latency

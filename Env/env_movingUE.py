@@ -45,12 +45,14 @@ class EnvMove(object):
                  schedu_method = 'round_robin',
                  ser_prob = np.array([6, 6, 1], dtype = np.float32),  # the proportion of users utilizing each service cat.
                  dl_mimo = 32,  # MIMO 天線數
-                 rx_gain = 20,  # dB
+                 rx_gain = 3,  # dB
                  learning_windows = 60000,
+                 hard_scenario = False
     ):
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
         self.BS_radius = BS_radius
+        self.hard_scenario = hard_scenario
         self.edge = 1.5  # edge of the total area = 3 times of radius of the BS covarage area (原論文 3)
         self.band_whole = band_whole
         self.chan_mod = chan_mod
@@ -115,6 +117,14 @@ class EnvMove(object):
         self.urllc_tolerable = 0
         # > 1ms 還沒傳完的 urllc 封包個數
         self.urllc_fail = 0
+        # 看一下一個 window 中有多少 slot 是沒人使用 urllc 服務的
+        self.volte_UE_slot = 0
+        # 看一下一個 window 中有多少 slot 是沒人使用 embb 服務的
+        self.embb_UE_slot = 0
+        # 看一下一個 window 中有多少 slot 是沒人使用 volte 服務的
+        self.urllc_UE_slot = 0
+        # 看一下是哪一種 Packet 被 violate，每一格對應一個 packet size : {6.4, 12.8, 19.2, 25.6, 32} KB 
+        self.urllc_violate_packet_size = np.zeros(5)
 
     #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
@@ -223,6 +233,13 @@ class EnvMove(object):
                                      (self.UE_buffer[0, :] != 0) &
                                      (self.UE_cat == self.ser_cat[i]) )[0]
                 UE_Active_No = len(UE_index)
+
+                # 想看每一個 slot 中各切片是不是都有封包要傳
+                if UE_Active_No == 0:
+                    if i == 0: self.volte_UE_slot += 1
+                    elif i == 1: self.embb_UE_slot += 1
+                    else: self.urllc_UE_slot += 1
+
                 # if no active users then do nothing
                 if UE_Active_No != 0:
                     # Step1 : divide the allocated band into several RBs (1RB = 180kHz)
@@ -351,7 +368,8 @@ class EnvMove(object):
                 elif ser_name == 'urllc':
                     # use exponential distribution to simulate suddenly burst packets 
                     # read time is determines much smaller; the spec shows the average time is 180s, but here it is defined as 180 ms
-                    self.UE_readtime[ue_index] = np.random.exponential(180 * 10 ** -3, [1, ue_index_Size])  
+                    if self.hard_scenario == False: self.UE_readtime[ue_index] = np.random.exponential(180 * 10 ** -3, [1, ue_index_Size])  
+                    else: self.UE_readtime[ue_index] = np.random.exponential(180 * 10 ** -3, [1, ue_index_Size])  # avg. time = 10ms
 
         # extract the UEs with readtimes lower than 0
         UE_index_readtime = np.where(self.UE_readtime <= 0)[0].tolist()
@@ -369,9 +387,14 @@ class EnvMove(object):
                     self.UE_readtime[ue_id] = np.random.uniform(0, 160 * 10 ** (-3), 1).squeeze()  # generate a new readtime
                 # case2 : embb_general
                 elif self.UE_cat[ue_id] == 'embb_general':
-                    tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800  # packet size is generated from a Pareto distribution with a parameter 1.2 & base = 800 bits
-                    if tmp_buffer_size > 2000:  # upper bound is set to 2000 bits
-                        tmp_buffer_size = 2000
+                    if self.hard_scenario == False:
+                        tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800  # packet size is generated from a Pareto distribution with a parameter 1.2 & base = 800 bits
+                        if tmp_buffer_size > 2000:  # upper bound is set to 2000 bits
+                            tmp_buffer_size = 2000
+                    else:
+                        tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 6400  # packet size is generated from a Pareto distribution with a parameter 1.2 & base = 6400 bits
+                        if tmp_buffer_size > 12800:  # upper bound is set to 12800 bits
+                            tmp_buffer_size = 12800
                     # tmp_buffer_size = np.random.choice([1*8*10**6, 2*8*10**6, 3*8*10**6, 4*8*10**6, 5*8*10**6])
                     self.UE_buffer[buf_ind, ue_id] = tmp_buffer_size
                     self.tx_bit_no[1] += tmp_buffer_size
@@ -386,7 +409,8 @@ class EnvMove(object):
                     #      tmp_buffer_size > 5 * 10 **6
                     
                     # method2 : small packet size
-                    tmp_buffer_size = np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])
+                    if self.hard_scenario == False: tmp_buffer_size = np.random.choice([6.4*8*10**3, 12.8*8*10**3, 19.2*8*10**3, 25.6*8*10**3, 32*8*10**3])
+                    else: tmp_buffer_size = np.random.choice([16*8, 24*8, 32*8, 48*8, 64*8])  # {16, 24, 32, 48, 64} B
                     # tmp_buffer_size = np.random.choice([0.3 * 8 * 10 ** 6])
                     # method3 : large packet size
                     # tmp_buffer_size = np.random.choice(
@@ -396,7 +420,8 @@ class EnvMove(object):
                     self.tx_bit_no[2] += tmp_buffer_size
                     # generate a new readtime
                     # read time is determines much smaller; the spec shows the average time is 180s, but here it is defined as 180 ms
-                    self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
+                    if self.hard_scenario == False: self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
+                    else: self.UE_readtime[ue_id] = np.random.exponential(10 * 10 ** -3, 1).squeeze()  # mean = 10 ms
                 
                 # update the backup buffer
                 self.UE_buffer_backup[buf_ind, ue_id] = self.UE_buffer[buf_ind, ue_id]
@@ -410,7 +435,8 @@ class EnvMove(object):
                 elif self.UE_cat[ue_id] == 'embb_general':
                     self.UE_readtime[ue_id] = np.random.pareto(1.2, 1).squeeze() * 6 * 10 ** -3
                 else:  # urllc
-                    self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
+                    if self.hard_scenario == False: self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()
+                    else: self.UE_readtime[ue_id] = np.random.exponential(10 * 10 ** -3, 1).squeeze()  # mean = 10ms
                 # record the no. of the dropped packets
                 self.drop_pkt_no[self.ser_cat.index(self.UE_cat[ue_id])] += 1
 
@@ -453,7 +479,7 @@ class EnvMove(object):
             self.idle_frame += 1
         
         # do nothing
-        handling_latency = 2 * 10 ** (-3)
+        # handling_latency = 2 * 10 ** (-3)
         handling_latency = 0
 
         # calculate the no. of sucessfully transmitted packets of each UE in the current timeslot
@@ -493,10 +519,32 @@ class EnvMove(object):
                             if (rate[ue_id] >= 10 * 10 ** 6) & (
                                     self.UE_latency[i, ue_id] <= 1 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
+                            else:  # 想看 urllc 是哪種大小的封包 fail
+                                if self.UE_buffer_backup[i, ue_id] == 6.4*8*10**3:
+                                    self.urllc_violate_packet_size[0] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 12.8*8*10**3:
+                                    self.urllc_violate_packet_size[1] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 19.2*8*10**3:
+                                    self.urllc_violate_packet_size[2] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 25.6*8*10**3:
+                                    self.urllc_violate_packet_size[3] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 32*8*10**3:
+                                    self.urllc_violate_packet_size[4] += 1
                         else: # take more than 1 timeslot
                             if (self.UE_buffer_backup[i, ue_id] / self.UE_latency[i, ue_id] >= 10 * 10 ** 6) & (
                                     self.UE_latency[i, ue_id] <= 1 * 10 ** (-3) - handling_latency):
                                 self.succ_tx_pkt_no[cat_index] += 1
+                            else:  # 想看 urllc 是哪種大小的封包 fail
+                                if self.UE_buffer_backup[i, ue_id] == 6.4*8*10**3:
+                                    self.urllc_violate_packet_size[0] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 12.8*8*10**3:
+                                    self.urllc_violate_packet_size[1] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 19.2*8*10**3:
+                                    self.urllc_violate_packet_size[2] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 25.6*8*10**3:
+                                    self.urllc_violate_packet_size[3] += 1
+                                elif self.UE_buffer_backup[i, ue_id] == 32*8*10**3:
+                                    self.urllc_violate_packet_size[4] += 1
 
     #=======================================================================================================================================#
     # return the qoe of each NS & average system SE of 1 timeslot in the current window 
@@ -518,6 +566,12 @@ class EnvMove(object):
         individual_se = self.individual_se / (self.learning_windows / self.time_subframe - self.idle_frame)
 
         return individual_se, self.urllc_perfect, self.urllc_tolerable, self.urllc_fail, self.idle_frame
+
+
+    #=======================================================================================================================================#
+    '''回傳觀測用的值'''
+    def eval_get_obs2(self):
+        return self.volte_UE_slot, self.embb_UE_slot, self.urllc_UE_slot, self.urllc_violate_packet_size
 
     #=======================================================================================================================================#
     # update the UE_buffer & UE_latency after each timeslot

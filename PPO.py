@@ -13,23 +13,18 @@ from Utils.seed import set_seed
 from pprint import pprint
 
 
-seeds_fixed = [123, 124, 125, 126, 127]
-exps_fixed = ['exp10', 'exp11', 'exp12', 'exp13', 'exp14']
+exps_fixed = ['exp21', 'exp22', 'exp23', 'exp24', 'exp25']
+exps_moving = ['exp18', 'exp19', 'exp20', 'exp21', 'exp22']
+seeds = [124, 125, 126, 127, 128]
+fixed_or_not = [True, False]
 
-seeds_moving = [126, 127]
-exps_moving = ['exp10', 'exp11']
-
-fixed_or_not = [False]
+hard_scenario = True
 
 for fixed in fixed_or_not:
+
+    if fixed: exps = exps_fixed
+    else: exps = exps_moving
     
-    if fixed == True : 
-        seeds = seeds_fixed
-        exps = exps_fixed
-    else:
-        seeds = seeds_moving
-        exps = exps_moving
-        
     for i in range(len(seeds)):
         print(f"It's {exps[i]}, seeds {seeds[i]}")
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -147,17 +142,31 @@ for fixed in fixed_or_not:
         # 自創 reward function
         # reward : shape (1), utility.shape (1)
         # se : np.int with shape (1), qoe : np.array with shape (3)
+        # def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+        #     standard = 0.98  # standard for embb & volte
+        #     standard2 = 0.95  # standard for urllc (最高可以 0.96)
+        #     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+        #     if qoe[1] >= standard and qoe[0] >= standard:
+        #         if qoe[2] >= standard2:
+        #             reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 100.0) * se[0])[0] / 10  # 會介於 0~1
+        #         else:
+        #             reward = (qoe[2] - standard2) - 0.5  # -0.5~-1.45
+        #     else:
+        #         reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+        #     reward = np.array([reward])
+
+        #     return utility, reward
+
+        # 自創 reward function2 -> 就分兩種情況就好，一種是已經滿足所有 SSR，另一種是滿足所有 SSR 了。
+        # reward : shape (1), utility.shape (1)
+        # se : np.int with shape (1), qoe : np.array with shape (3)
         def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-            standard = 0.98  # standard for embb & volte
-            standard2 = 0.95  # standard for urllc (最高可以 0.96)
+            SLA_threshold = 0.95
             utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
-            if qoe[1] >= standard and qoe[0] >= standard:
-                if qoe[2] >= standard2:
-                    reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 100.0) * se[0])[0] / 10  # 會介於 0~1
-                else:
-                    reward = (qoe[2] - standard2) - 0.5  # -0.5~-1.45
+            if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
+                reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
             else:
-                reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
+                reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
             reward = np.array([reward])
 
             return utility, reward
@@ -171,13 +180,13 @@ for fixed in fixed_or_not:
         ser_cat = ['volte', 'embb_general', 'urllc']
         qoe_weights = [1, 1, 1]
         se_weight = 0.01
-        total_band = 10 * 10**6  # unit : MHz
+        total_band = 20 * 10**6  # unit : MHz
         total_timesteps = 10000
-        dl_mimo = 16
+        dl_mimo = 3
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo)
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
+        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
@@ -335,6 +344,13 @@ for fixed in fixed_or_not:
             if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
 
             state = next_state
+        
+        # if fixed_UE:
+        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/actor_weights.pth')
+        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/critic_weights.pth')
+        # else:
+        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/actor_weights.pth')
+        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/critic_weights.pth')
 
         print("Complete")
 

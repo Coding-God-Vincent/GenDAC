@@ -7,25 +7,17 @@ import matplotlib.pyplot as plt
 from Utils.LSTM_A2C_utils.utils import calc__reward
 from tqdm.auto import tqdm
 from Utils.seed import set_seed
+import torch
 
-
-exps_fixed = ['exp9', 'exp10', 'exp11', 'exp12', 'exp13']
-exps_moving = ['exp8', 'exp9', 'exp10', 'exp11', 'exp12']
+exps = ['exp6', 'exp7', 'exp8', 'exp9', 'exp10']
 seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [False, True]
+fixed_or_not = [True, False]
 hard_scenario = True
 
+#--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 for fixed in fixed_or_not:
-
-    if fixed: 
-        exps = exps_fixed
-    else: 
-        exps = exps_moving
-
     for i in range(len(seeds)):
-        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''環境參數'''
-        
         set_seed(seed= seeds[i])
         fixed_UE = fixed  # True if using GANDDQN env, False if LSTM_A2C env
         exp_name = exps[i]
@@ -35,7 +27,7 @@ for fixed in fixed_or_not:
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''設定圖片 / log 路徑'''
-        algo_name = 'Hard_Slicing'
+        algo_name = 'P_Hard_Slicing'
         log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
         # generate log writer
@@ -46,8 +38,8 @@ for fixed in fixed_or_not:
         # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/Hard_Slicing/exp3/tensorboard"
         # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
-        if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing") / exp_name
-        else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing") / exp_name
+        if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/P_Hard_Slicing") / exp_name
+        else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/P_Hard_Slicing") / exp_name
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -59,9 +51,32 @@ for fixed in fixed_or_not:
 
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        def state_preprocessing(state):
+            # 作法一: log-scale
+            # log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+            # return log_state / 10.0  # 壓到 [0~10] 之間
+
+            # 作法二 : 為了保留原始比例，我不用 Log-scale，我直接除以一個同除以一個數字
+            return state / 10**7
+            
+
+
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # 回傳各網路切片所分到的頻寬量 (Hz)
+        # state : preprocessed state, np.array, shape (state_dim)
+        # total_bandwidth : int, 10* 10**6 (Hz)
+        # return logit (np.array with shape (action_dim) , real_action (np.array with shape (action_dim))
+        def get_actions(state, total_band):
+            state = torch.tensor(state, dtype= torch.float32)  # shape (state_dim)
+            proportion = torch.nn.functional.softmax(state, dim= 0).numpy()
+            real_action = total_band * proportion
+            return real_action
+
+
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
-        total_band = 20  # unit : MHz
+        total_band = 20 * 10**6  # unit : MHz
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
         dl_mimo = 3
@@ -90,16 +105,17 @@ for fixed in fixed_or_not:
 
         for frame in tqdm(range(1, total_timesteps+1)):
             print(f"\n\n******Episode {frame} :")
-            
-            action = [total_band/3 * 10**6, total_band/3 * 10**6, total_band/3 * 10**6]  # 平均分給三個網路切片
+            state = state_preprocessing(state= observation_bits) 
+            action = get_actions(state= state, total_band= total_band)
             env.band_ser_cat = action
+            print(f"state = {state}, action= {action}")
             # lower level
             for i_subframe in range(learning_windows):
                 env.scheduling()
                 env.provisioning()
                 env.activity()
 
-            qoe, se = env.get_reward()  # se : np.int with shape (1), qoe : np.array with shape (3)
+            qoe, se = env.get_reward()  # se : np.int with shape (), qoe : np.array with shape (3)
             utility, reward = calc__reward(qoe= qoe, se= se)
             # calculate the individual se of each network slices of the current learning window
             # indivifual_se : np.array with shape (3)
@@ -132,7 +148,7 @@ for fixed in fixed_or_not:
             writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
             writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
             writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
-            writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
+            writer.add_scalar(tag= 'se', scalar_value= se, global_step= frame)
             writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
             writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
             writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)

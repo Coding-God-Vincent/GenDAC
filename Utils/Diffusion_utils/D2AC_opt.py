@@ -90,7 +90,7 @@ class D2AC_OPT(BasePolicy):
         logits= model_(state= state)
 
         # There's 10% chance of adding noise to the action
-        if np.random.rand() < 0.1:
+        if np.random.rand() < 0.2:
             noise = to_torch(self.noise_generator.generate(logits.shape), dtype= torch.float32, device= self.device)  # shape (batch_size, action_dim)
             acts = logits + noise
             # acts need to clamp in [-max_action, max_action] ((-1, 1) here)
