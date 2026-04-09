@@ -4,8 +4,8 @@ import torch
 from torch import nn
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from copy import deepcopy  # deepcopy can copy "everything" and generate a new one
-from .helpers import GaussianNoise
 import numpy as np
+
 
 '''About Inherit BasePolicy
 只要繼承 tianshou 的 BasePolicy 就一定要有以下幾個函式 : 
@@ -30,11 +30,10 @@ class D2AC_OPT(BasePolicy):
         reward_normalization : bool = False,
         n_steps : int = 1,  # use n_step return as Target
         lr_decay : bool = False,
-        lr_max_step : int = 1000,  # steps to decay lr
-        # noise ~ std of gaussian dist. noise will be added to action to enhance exploration
-        exploration_noise : float = 0.1,
+        lr_max_step : int = 10000,  # steps to decay lr
         with_rec_loss : bool = True,
         recon_param : int = 1,
+        max_action : int = 1,
         **kwargs : any
     ):
         super().__init__(**kwargs)
@@ -54,9 +53,9 @@ class D2AC_OPT(BasePolicy):
         self.n_steps = n_steps
         self.lr_decay = lr_decay
         self.lr_max_step = lr_max_step
-        self.noise_generator = GaussianNoise(sigma= exploration_noise)
         self.with_rec_loss = with_rec_loss
         self.recon_param = recon_param
+        self.max_action = max_action
         
         # if we want to decay the lr, use CosineAnnealingLR
         if lr_decay:
@@ -89,21 +88,11 @@ class D2AC_OPT(BasePolicy):
         # clampped but not converted to the actual action (proportion of the resource) yet
         logits= model_(state= state)
 
-        # There's 10% chance of adding noise to the action
-        if np.random.rand() < 0.2:
-            noise = to_torch(self.noise_generator.generate(logits.shape), dtype= torch.float32, device= self.device)  # shape (batch_size, action_dim)
-            acts = logits + noise
-            # acts need to clamp in [-max_action, max_action] ((-1, 1) here)
-            acts = torch.clamp(acts, -1, 1)  # preserve gradient
-            # we use tanh to provide smoother gradient
-            # acts = torch.tanh(acts)
-        else: acts = logits
-
         # 若是要從機率分布中抽樣，就把該機率分布存入 dist
         dist = None
 
         # 回傳一個新的 Batch，因為這個 Batch 沒有要放到 ReplayBuffer 所以裡面的 key 跟 value 都可以隨便設隨便放
-        return Batch(logits= logits, act= acts, state= state, dist= dist)
+        return Batch(logits= logits, act= logits, state= state, dist= dist)
 
 
     '''Assume time t
@@ -127,7 +116,7 @@ class D2AC_OPT(BasePolicy):
     ):
         batch = buffer[indices]  # 取出當前 batch 的資料，type = Batch()，此時 batch.obs_next 即是 s(t+n)
         # 算出 a_target(t+n), shape (batch_size, action_dim)
-        act_target = self.forward(batch= batch, state= 'obs_next', model= 'target_actor').act
+        act_target = self.forward(batch= batch, state= 'obs_next', model= 'target_actor').act  # steps 亂填沒差，不會加 noise
         # 為了傳入 targetQ，把 obs_next 取出來。shape (batch_size, state_dim)
         s_t_n = to_torch(batch.obs_next, device= self.device, dtype= torch.float32)
         return self.target_critic.q_min(state= s_t_n, action= act_target)  # shape (batch_size)
