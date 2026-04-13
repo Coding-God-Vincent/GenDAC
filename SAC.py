@@ -57,6 +57,10 @@ for fixed in fixed_or_not:
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/SAC") / f"{exp_name}"
         else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/SAC") / f"{exp_name}"
+        # 自行偵測資料夾，若不存在就補上，若存在也不報錯
+        # parents= True -> 更上層的資料夾一併檢查補上
+        # exist_ok= True -> 若已經存在也不會報錯
+        image_path.mkdir(parents=True, exist_ok=True)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Moving Average'''
@@ -326,12 +330,12 @@ for fixed in fixed_or_not:
 
             state = next_state
         
-        # if fixed_UE:
-        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/actor_weights.pth')
-        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/critic_weights.pth')
-        # else:
-        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/actor_weights.pth')
-        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/critic_weights.pth')
+        if fixed_UE:
+            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/actor_weights.pth')
+            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/critic_weights.pth')
+        else:
+            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/actor_weights.pth')
+            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/critic_weights.pth')
         print("Complete")
         
 

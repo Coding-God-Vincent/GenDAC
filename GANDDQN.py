@@ -82,6 +82,10 @@ for fixed in fixed_or_not:
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN") / f"{exp_name}"
         else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN") / f"{exp_name}"
+        # 自行偵測資料夾，若不存在就補上，若存在也不報錯
+        # parents= True -> 更上層的資料夾一併檢查補上
+        # exist_ok= True -> 若已經存在也不會報錯
+        image_path.mkdir(parents=True, exist_ok=True)
 
         #=============================================================================================================================================#
         #%%  # 就像 Ipynb 一樣的功能，把程式碼切成一個一個的 Cell
@@ -864,7 +868,7 @@ for fixed in fixed_or_not:
                 # f.close()
         
         
-        # model.save_w()
+        model.save_w()
 
         print('Complete')
 

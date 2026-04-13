@@ -48,6 +48,10 @@ for fixed in fixed_or_not:
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Hard_Slicing") / exp_name
         else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Hard_Slicing") / exp_name
+        # 自行偵測資料夾，若不存在就補上，若存在也不報錯
+        # parents= True -> 更上層的資料夾一併檢查補上
+        # exist_ok= True -> 若已經存在也不會報錯
+        image_path.mkdir(parents=True, exist_ok=True)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)

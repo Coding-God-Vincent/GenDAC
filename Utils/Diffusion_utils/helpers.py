@@ -107,22 +107,21 @@ def vp_beta_schedule(timesteps, dtype=torch.float32):
 class GaussianNoise:
     """Generates Gaussian noise."""
 
-    def __init__(self, mu= 0.0, sigma= 0.1):
+    def __init__(self, mu= 0.0):
         """
         :param mu: Mean of the Gaussian distribution.
         :param sigma: Standard deviation of the Gaussian distribution.
         """
         self.mu = mu
-        self.sigma = sigma
 
     # 從均勻分布中抽樣出一個值
-    def generate(self, shape):
+    def generate(self, shape, sigma= 0.1):
         """
         Generate Gaussian noise based on a shape .
 
         :param shape: Shape of the noise to generate, typically the action's shape.
         :return: Numpy array with Gaussian noise.
         """
-        noise = np.random.normal(self.mu, self.sigma, shape)
+        noise = np.random.normal(self.mu, sigma, shape)
         return noise
 

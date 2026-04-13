@@ -30,7 +30,7 @@ DDIM = False  # True if using DDIM
 # exps = ['exp64', 'exp72']
 # fixed_or_not = [True, False]
 
-exps = ['exp108']
+exps = ['exp114']
 
 seeds = [125]
 fixed_or_not = [False]
@@ -65,7 +65,10 @@ for fixed in fixed_or_not:
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
         else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
-
+        # 自行偵測資料夾，若不存在就補上，若存在也不報錯
+        # parents= True -> 更上層的資料夾一併檢查補上
+        # exist_ok= True -> 若已經存在也不會報錯
+        image_path.mkdir(parents=True, exist_ok=True)
         
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # 計算每一步的 exploration rate
@@ -127,23 +130,42 @@ for fixed in fixed_or_not:
         # state : preprocessed state, np.array, shape (state_dim)
         # total_bandwidth : int, 10* 10**6 (Hz)
         # return logit (np.array with shape (action_dim) , real_action (np.array with shape (action_dim))
-        noise_generator = GaussianNoise(sigma= 0.1)
-        def get_actions(state, total_band, model, device, max_action, exploration_rate_decay, step, start_step, end_step, start_rate, end_rate):
+        noise_generator = GaussianNoise()
+        def get_actions(state, 
+                        total_band, 
+                        model, 
+                        device, 
+                        max_action, 
+                        exploration_rate_decay, 
+                        step, 
+                        start_step, 
+                        end_step, 
+                        start_rate, 
+                        end_rate, 
+                        slack_based_explore, 
+                        slack
+        ):
             state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)  # shape (batch_size(1), state_dim)
             with torch.no_grad():
                 action_logit = model(state= state)  # shape (batch_size(1), action_dim)
             
-            if exploration_rate_decay:
-                exploration_rate = get_exploration_rate(step= step, start_ep= start_step, end_ep= end_step, start_rate= start_rate, end_rate= end_rate)
-            else: exploration_rate = start_rate
-
-            # add exploration noise
-            if np.random.rand() < exploration_rate:
-                noise = to_torch(noise_generator.generate(action_logit.shape), dtype= torch.float32, device= device)  # shape (batch_size, action_dim)
+            if slack_based_explore:  # 用 sigma，不要像 exploration rate 那樣要探索還要看機率。這邊都要探索，大探索或小探索而已。
+                if slack > 0.02: sigma = 0.3  # 很安全，加大探索
+                elif slack <= 0.01 and slack > 0: sigma = 0.2  # 偏安全，小加大探索
+                else: sigma = 0.1  # not feasible，不過度探索 (只靠 Diffusion 天生的探索)，穩定學習
+                noise = to_torch(noise_generator.generate(action_logit.shape, sigma= sigma), dtype= torch.float32, device= device)
                 action_logit = action_logit + noise
-                # acts need to clamp in [-max_action, max_action] ((-1, 1) here)
-                action_logit = torch.clamp(action_logit, -max_action, max_action)  # preserve gradient
+            else:  # 用 exploration rate (要探索的機率)
+                if exploration_rate_decay:  # decay exploration rate
+                    exploration_rate = get_exploration_rate(step= step, start_ep= start_step, end_ep= end_step, start_rate= start_rate, end_rate= end_rate)
+                else: exploration_rate = start_rate  # static exploration rate
+                # add exploration noise
+                if np.random.rand() < exploration_rate:   
+                    noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.2), dtype= torch.float32, device= device)  # shape (batch_size, action_dim)  # sigma = 0.1
+                    action_logit = action_logit + noise
             
+            # acts need to clamp in [-max_action, max_action] ((-1, 1) here)
+            action_logit = torch.clamp(action_logit, -max_action, max_action)  # preserve gradient
 
             # 作法一 : 取絕對值後正規化 -> 不然 -5 & 5 會得到相同的分配，模型會錯亂
             # action = torch.abs(action_logit).squeeze(dim= 0).numpy()  # np.array with shape (action_dim)
@@ -215,8 +237,7 @@ for fixed in fixed_or_not:
         # 自創 reward function2 -> 就分兩種情況就好，一種是已經滿足所有 SSR，另一種是滿足所有 SSR 了。
         # reward : shape (1), utility.shape (1)
         # se : np.int with shape (1), qoe : np.array with shape (3)
-        def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-            SLA_threshold = 0.95
+        def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
             utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
             if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
                 reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
@@ -226,6 +247,15 @@ for fixed in fixed_or_not:
 
             return utility, reward
 
+        
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # slack calculator : slack = min{qoe[i] - SLA_threshold | i = 0, 1, 2} 即三個切片贏過 SLA threshold 的程度的最小那個
+        # slack 越大，探索的越兇。讓模型在贏過很多的時候可以大膽的探索
+        # qoe : np.array with shape (3)
+        # SLA_threshold : int
+        def cal_slack(qoe, SLA_threshold):
+            return np.min(qoe - SLA_threshold)
+            
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -244,7 +274,7 @@ for fixed in fixed_or_not:
         # training parameters
         state_dim = len(ser_cat)
         action_dim = len(ser_cat)
-        max_action = 5
+        max_action = 4  # 3, 4, 5 中 4 的效果最好
         beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
         if fixed_UE: denoise_step = 1  # 1 -> best in fixedUE、3 -> best in movingUE
         else: denoise_step = 3
@@ -257,11 +287,13 @@ for fixed in fixed_or_not:
         prior_alpha = 0.4  # used in prioritized replay buffer
         prior_beta = 0.4  # used in prioritized replay buffer
         # About exploration rate
-        start_exploration_rate = 0.0
+        start_exploration_rate = 0.1
         end_exploration_rate = 0.1
         start_step = 150
         end_step = 1000
         exploration_rate_decay = False
+        SLA_threshold = 0.95
+        slack_based_explore = False
 
 
         # log params
@@ -346,7 +378,7 @@ for fixed in fixed_or_not:
         # J = \alpha * SE + \betas * SSRs
         qoe_weights = [1, 1, 1]  # \betas
         se_weight = 0.01  # \alpha (原論文設定為 0.01)
-        total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
+        total_timesteps = 10  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
         if hard_scenario: dl_mimo = 3  # 原本是 64
         else: dl_mimo = 16
@@ -371,6 +403,7 @@ for fixed in fixed_or_not:
         Critic_losses = []
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        slack = 0.0
         # training
         for frame in tqdm(range(1, total_timesteps+1)):
             print(f"\n\n******Episode {frame} :")
@@ -392,7 +425,10 @@ for fixed in fixed_or_not:
                 start_step= start_step,
                 end_step= end_step,
                 start_rate= start_exploration_rate,
-                end_rate= end_exploration_rate)
+                end_rate= end_exploration_rate,
+                slack_based_explore= slack_based_explore,
+                slack= slack
+            )
             # print(f"action_logit = {action_logit}, real action = {real_action}")
             # print(f"action = {real_action}")
             # assign to the env.
@@ -410,6 +446,7 @@ for fixed in fixed_or_not:
             # qoe : np.array with shape (3)
             # se : np.array with shape (1)
             qoe, se = env.get_reward()
+            
 
             # calculate the individual se of each network slices of the current learning window
             # indivifual_se : np.array with shape (3)
@@ -424,7 +461,10 @@ for fixed in fixed_or_not:
 
             # use qoe & se to calculate utility as a reward
             # utility = \alpha * SE + (\betas * SSRs).sum()
-            utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, reward_clipping= False)
+            utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
+
+            # use qoe & SLA_threshold to calculate slack
+            slack = cal_slack(qoe= qoe, SLA_threshold= SLA_threshold)
 
             # Record the values of the current learning window
             QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
@@ -514,13 +554,13 @@ for fixed in fixed_or_not:
 
         print("Complete")
 
-        # # 存下訓練好的參數以供後續產圖
-        # if fixed_UE:
-        #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
-        #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
-        # else:
-        #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
-        #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
+        # 存下訓練好的參數以供後續產圖
+        if fixed_UE:
+            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
+            torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
+        else:
+            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
+            torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # Generate Outcome Figures
