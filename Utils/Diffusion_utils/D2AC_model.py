@@ -61,6 +61,12 @@ class GDM(nn.Module):
             act(),
             nn.Linear(in_features= hidden_dim, out_features= action_dim)
         )
+        
+        
+        # # 為了讓一開始的 action 是介於 [-max_action, max_actino] 之間，將最後一層的參數初始化為很小的值
+        # nn.init.uniform_(self.out_mlp.weight, -1e-4, 1e-4)
+        # nn.init.constant_(self.out_mlp.bias, 0.0)
+
 
     def forward(self, state, x_t, time):
         embedded_state = self.state_mlp(state)

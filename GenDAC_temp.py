@@ -24,18 +24,17 @@ import math
 * QoE 應該要以傳送出的 bits 為主，而非封包數，因為單靠封包數沒辦法體現出個網路切片的 loading。故改用各網路切片所需傳送的 bits 數作為狀態。
 * 改掉狀態欲處理的做法，改用 max_scaling，保留各網路切片的大小關係。
 '''
-
-'''moving'''
+'''fixed'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 DDIM = False  # True if using DDIM
 # exps = ['exp64', 'exp72']
 # fixed_or_not = [True, False]
 # 效能局
-exps_moving = ['exp124']
-seeds_moving = [125]
-# exps_fixed = ['exp96', 'exp97', 'exp98', 'exp99', 'exp100']
-# seeds_fixed = [124, 125, 126, 127, 128]
-fixed_or_not = [False]
+# exps_moving = ['exp124']
+# seeds_moving = [124]
+exps_fixed = ['exp97']
+seeds_fixed = [124]
+fixed_or_not = [True]
 hard_scenario = True
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -283,6 +282,14 @@ for fixed in fixed_or_not:
             real_action = total_band * proportion
             return random_logit, real_action
         
+        
+        def get_max_action(total_steps, current_steps):
+            progress = step / total_steps
+            if progress < 0.25 : max_action = 1
+            elif progress < 0.5 : max_action = 2
+            elif progress < 0.75 : max_action = 3
+            else : max_action = 4
+            return max_action
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # np.convolve(data, kernel= np.ones(window_size) / window_size, mode= 'valid')，用 kernel 掃過整個 data (stride = 1)
@@ -304,7 +311,7 @@ for fixed in fixed_or_not:
         '''max_action 設計問題
         
         '''
-        max_action = 4
+        max_action = 1
         action_scale = 1.0
         beta_schedule = 'vp'  # 'vp', 'cosin', 'linear'
         if fixed_UE: denoise_step = 1  # 1 -> best in fixedUE、3 -> best in movingUE
@@ -326,8 +333,8 @@ for fixed in fixed_or_not:
         SLA_threshold = 0.95
         slack_based_explore = False
         # prefill
-        logit_low = -3.5
-        logit_high = 3.5
+        logit_low = -0.5
+        logit_high = 0.5
 
 
         # log params
@@ -415,7 +422,7 @@ for fixed in fixed_or_not:
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
         prefill_steps = 3 * batch_size
-        if hard_scenario: dl_mimo = 6  # 原本是 64
+        if hard_scenario: dl_mimo = 3  # 原本是 64
         else: dl_mimo = 16
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)

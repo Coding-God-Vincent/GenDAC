@@ -13,10 +13,10 @@ from Utils.seed import set_seed
 from pprint import pprint
 
 
-exps_fixed = ['exp21', 'exp22', 'exp23', 'exp24', 'exp25']
-exps_moving = ['exp18', 'exp19', 'exp20', 'exp21', 'exp22']
-seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [True, False]
+# exps_fixed = ['exp21', 'exp22', 'exp23', 'exp24', 'exp25']
+exps_moving = ['exp23']
+seeds = [125]
+fixed_or_not = [False]
 
 hard_scenario = True
 
@@ -186,7 +186,8 @@ for fixed in fixed_or_not:
         se_weight = 0.01
         total_band = 20 * 10**6  # unit : MHz
         total_timesteps = 10000
-        dl_mimo = 3
+        if hard_scenario : dl_mimo = 6  # 3
+        else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
