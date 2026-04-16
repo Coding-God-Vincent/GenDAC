@@ -168,6 +168,7 @@ class D2AC_OPT(BasePolicy):
         # update DoubleCritic Network
         self.critic_optim.zero_grad()
         critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
         self.critic_optim.step()
         return critic_loss
 
@@ -206,6 +207,7 @@ class D2AC_OPT(BasePolicy):
         if update:
             self.actor_optim.zero_grad()
             actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
             self.actor_optim.step()
 
         return actor_loss, policy_loss, recon_loss
@@ -280,6 +282,8 @@ class D2AC_OPT(BasePolicy):
         # update Actor through batch
         self.actor_optim.zero_grad()
         actor_loss.backward()
+        # 數值通常設 0.5 或 1.0，這能有效防止訓練崩潰
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
         self.actor_optim.step()
         # update all target networks
         self.update_target_networks()

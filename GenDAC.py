@@ -33,8 +33,8 @@ DDIM = False  # True if using DDIM
 # 效能局
 exps_moving = ['exp124']
 seeds_moving = [125]
-# exps_fixed = ['exp96', 'exp97', 'exp98', 'exp99', 'exp100']
-# seeds_fixed = [124, 125, 126, 127, 128]
+exps_fixed = ['exp96', 'exp97', 'exp98', 'exp99', 'exp100']
+seeds_fixed = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = True
 
