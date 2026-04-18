@@ -119,6 +119,12 @@ class D2AC_OPT(BasePolicy):
         act_target = self.forward(batch= batch, state= 'obs_next', model= 'target_actor').act  # steps 亂填沒差，不會加 noise
         # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
         act_target = act_target - act_target.mean(dim= 1, keepdim= True)
+        # 找出 abs 後最大者
+        max_abs = torch.max(torch.abs(act_target), dim= 1, keepdim=True)[0]
+        # 算出縮放比例 (使用 self.max_action)
+        scale_factor = torch.clamp(self.max_action / (max_abs + 1e-8), max= 1.0)
+        # 執行縮放
+        act_target = act_target * scale_factor
         # 為了傳入 targetQ，把 obs_next 取出來。shape (batch_size, state_dim)
         s_t_n = to_torch(batch.obs_next, device= self.device, dtype= torch.float32)
         return self.target_critic.q_min(state= s_t_n, action= act_target)  # shape (batch_size)
@@ -200,6 +206,12 @@ class D2AC_OPT(BasePolicy):
         action = self.forward(batch= batch, state= 'obs', model= 'actor').act  # shape (batch_size, action_dim)
         action = to_torch(action, dtype= torch.float32, device= self.device)
         action = action - action.mean(dim= 1, keepdim= True)  # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
+        # 找出絕對值最大者
+        max_abs = torch.max(torch.abs(action), dim=1, keepdim=True)[0]
+        # 算出縮放比例 (使用 self.max_action)
+        scale_factor = torch.clamp(self.max_action / (max_abs + 1e-8), max=1.0)
+        # 執行縮放
+        action = action * scale_factor
         # mean() 只接受 torch.float32，而這邊 q_min 是從神經網路出來，自然是 torch.float32
         # torch.tensor with shape(), not shape (1)
         policy_loss = -self.critic.q_min(state= state, action= action).mean()  

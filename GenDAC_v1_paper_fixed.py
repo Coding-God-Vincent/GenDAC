@@ -96,8 +96,14 @@ def state_preprocessing(state):
 # return : random_logit : np.array with shape (3), real_action : np.array with shape (3)
 def get_random_actions(total_band, logit_low = -0.5, logit_high = 0.5, action_dim= 3):
     random_logit = np.random.uniform(low=logit_low, high=logit_high, size=(action_dim,)).astype(np.float32).copy()  # np.array with shape (action_dim)
-    # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
+    # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
     random_logit = random_logit - random_logit.mean()  # np.array with shape (action_dim)
+    # 找出 abs 後最大的值
+    max_abs = np.max(np.abs(random_logit))
+    # 算出縮放係數 (使用純 Python 的 min 即可，保證不超過 1.0)
+    scale_factor = min(1.0, max_action / (max_abs + 1e-8))
+    # 執行縮放
+    random_logit = random_logit * scale_factor
     proportion = torch.nn.functional.softmax(torch.from_numpy(random_logit), dim= 0).numpy()
     real_action = total_band * proportion
     return random_logit, real_action
@@ -159,8 +165,15 @@ def get_actions(state,
     # 使用當前動態傳入的 max_action 進行 Clamp
     action_logit = torch.clamp(action_logit, -max_action, max_action)
 
-    # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
+    # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
     action_logit = action_logit - action_logit.mean(dim= 1, keepdim= True)  # (batch_size, action_dim)
+
+    # 為了避免中心化後的內容超過 max_action，這邊要再等比例縮放
+    # 找出 abs 後最大的那個值
+    max_abs = torch.max(torch.abs(action_logit), dim= 1, keepdim= True)[0]
+    # 若有超過 max_action，那就要等比例縮放，若沒有就維持原比例
+    scale_factor = torch.clamp(max_action / (max_abs + 1e-8), max= 1.0)
+    action_logit = action_logit * scale_factor
 
     proportion = torch.nn.functional.softmax(action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
