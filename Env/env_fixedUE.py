@@ -65,7 +65,7 @@ class cellularEnv(object):
         dl_mimo = 32,
         # UE 端 (接收端) 的增益，跟距離無關，是硬體的能力 (結構)。可以把接收到的訊號的功率放大 20dB
         # rx = receive
-        rx_gain = 3,  # dB
+        rx_gain = 20,  # dB
 
         # RL 的學習視窗，可以想成是一個 episode。在這個 episode 中會更新模型數次
         # 可以得出一次訓練會要 60000 * 0.5ms = 30s
@@ -612,6 +612,13 @@ class cellularEnv(object):
     '''回傳觀測用的值 2'''
     def eval_get_obs2(self):
         return self.volte_UE_slot, self.embb_UE_slot, self.urllc_UE_slot, self.urllc_violate_packet_size
+    
+    
+    #=======================================================================================================================================#
+    '''回傳觀測用的值 3'''
+    # 傳送各切片被 drop 掉的值
+    def eval_get_obs3(self):
+        return self.drop_pkt_no  # np.array with shape (3) : no of dropped packets within a window
         
 
     #=======================================================================================================================================#
@@ -672,6 +679,11 @@ class cellularEnv(object):
         self.urllc_fail = 0
         # 每個 window 中沒有需求的 slot 個數
         self.idle_frame = 0
+        # urllc 各個失敗傳送的封包的計數器
+        self.urllc_UE_slot = 0
+        self.volte_UE_slot = 0
+        self.embb_UE_slot = 0
+        self.urllc_violate_packet_size = np.zeros(5)
 
         # 待傳送給各 UE 的封包的 Queue & Latency 的計算
         # **這不應該在每一個 learning window 的最後全部重置，否則問題會變成 contextual bandit

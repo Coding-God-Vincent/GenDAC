@@ -24,9 +24,11 @@ import math
 # total_steps : int
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 def get_dynamic_max_action(step, total_steps):
-    if step < 500 : return 1
-    elif step < 1500 : return 2
-    else: return 3
+    # if step < 500 : return 1
+    # elif step < 1500 : return 2
+    # elif step < 3500 : return 3
+    # else: return 4
+    return 1
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -128,7 +130,8 @@ def get_actions(state,
     # 使用當前動態傳入的 max_action 進行 Clamp
     action_logit = torch.clamp(action_logit, -max_action, max_action)
 
-    proportion = torch.nn.functional.softmax(action_logit, dim= 1).cpu().numpy().squeeze()
+    scaled_action_logit = action_logit * action_scale
+    proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
     return action_logit.cpu().numpy().squeeze(), real_action
 
@@ -156,10 +159,12 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 '''system env setup'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
-fixed_UE = False
-exps = ['exp125', 'exp127', 'exp128', 'exp129', 'exp130']
-seeds = [125, 124, 126, 127, 128]
-hard_scenario = True
+fixed_UE = True
+# exps = ['exp125', 'exp127', 'exp128', 'exp129', 'exp130']
+# seeds = [125, 124, 126, 127, 128]
+exps = ['exp107']
+seeds = [124]
+hard_scenario = False
 DDIM = False
 
 
@@ -204,7 +209,8 @@ for i in range(len(seeds)):
     initial_max_action = 1  # will be updated during training (curriculum learning)
     logit_low = -0.5
     logit_high = 0.5
-    action_scale = 1.0
+    action_scale = 2.0
+    total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
     beta_schedule = 'vp'
     if fixed_UE: denoise_step = 1
     else: denoise_step = 3
@@ -307,11 +313,11 @@ for i in range(len(seeds)):
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # generate the env
     # ser_cat = ['volte', 'embb_general', 'urllc']
-    total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+    if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+    else: total_band = 10 * 10**6
     # J = \alpha * SE + \betas * SSRs
     qoe_weights = [1, 1, 1]  # \betas
     se_weight = 0.01  # \alpha (原論文設定為 0.01)
-    total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
     learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
     prefill_steps = 3 * batch_size
     if hard_scenario: dl_mimo = 3  # 原本是 64
@@ -487,10 +493,6 @@ for i in range(len(seeds)):
         individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
         
         volte_UE_slot, embb_UE_slot, urllc_UE_slot, urllc_violate_packet_size = env.eval_get_obs2()
-        env.urllc_UE_slot = 0
-        env.volte_UE_slot = 0
-        env.embb_UE_slot = 0
-        env.urllc_violate_packet_size = np.zeros(5)
 
         # use qoe & se to calculate utility as a reward
         # utility = \alpha * SE + (\betas * SSRs).sum()
@@ -575,6 +577,7 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
         writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
         writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
+        
         
         # gain next state (loading of each NS in the previous learning window)
         observation_packets, observation_bits = env.get_state()

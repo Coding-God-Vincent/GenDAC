@@ -45,7 +45,7 @@ class EnvMove(object):
                  schedu_method = 'round_robin',
                  ser_prob = np.array([6, 6, 1], dtype = np.float32),  # the proportion of users utilizing each service cat.
                  dl_mimo = 32,  # MIMO 天線數
-                 rx_gain = 3,  # dB
+                 rx_gain = 20,  # dB
                  learning_windows = 60000,
                  hard_scenario = False
     ):
@@ -125,6 +125,7 @@ class EnvMove(object):
         self.urllc_UE_slot = 0
         # 看一下是哪一種 Packet 被 violate，每一格對應一個 packet size : {6.4, 12.8, 19.2, 25.6, 32} KB 
         self.urllc_violate_packet_size = np.zeros(5)
+        self.drop_pkt_no = np.zeros(len(self.ser_cat))
 
     #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
@@ -572,6 +573,13 @@ class EnvMove(object):
     '''回傳觀測用的值'''
     def eval_get_obs2(self):
         return self.volte_UE_slot, self.embb_UE_slot, self.urllc_UE_slot, self.urllc_violate_packet_size
+
+    
+    #=======================================================================================================================================#
+    '''回傳觀測用的值'''
+    def eval_get_obs3(self):
+        return self.drop_pkt_no
+
 
     #=======================================================================================================================================#
     # update the UE_buffer & UE_latency after each timeslot
