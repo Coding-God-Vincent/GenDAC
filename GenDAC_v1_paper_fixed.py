@@ -96,8 +96,8 @@ def state_preprocessing(state):
 # return : random_logit : np.array with shape (3), real_action : np.array with shape (3)
 def get_random_actions(total_band, logit_low = -0.5, logit_high = 0.5, action_dim= 3):
     random_logit = np.random.uniform(low=logit_low, high=logit_high, size=(action_dim,)).astype(np.float32).copy()  # np.array with shape (action_dim)
-    # 去中心化
-    random_logit = random_logit - random_logit.mean(dim= 0, keepdim= 1)  # np.array with shape (action_dim)
+    # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
+    random_logit = random_logit - random_logit.mean()  # np.array with shape (action_dim)
     proportion = torch.nn.functional.softmax(torch.from_numpy(random_logit), dim= 0).numpy()
     real_action = total_band * proportion
     return random_logit, real_action

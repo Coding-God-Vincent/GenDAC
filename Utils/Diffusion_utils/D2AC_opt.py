@@ -117,6 +117,8 @@ class D2AC_OPT(BasePolicy):
         batch = buffer[indices]  # 取出當前 batch 的資料，type = Batch()，此時 batch.obs_next 即是 s(t+n)
         # 算出 a_target(t+n), shape (batch_size, action_dim)
         act_target = self.forward(batch= batch, state= 'obs_next', model= 'target_actor').act  # steps 亂填沒差，不會加 noise
+        # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
+        act_target = act_target - act_target.mean(dim= 1, keepdim= True)
         # 為了傳入 targetQ，把 obs_next 取出來。shape (batch_size, state_dim)
         s_t_n = to_torch(batch.obs_next, device= self.device, dtype= torch.float32)
         return self.target_critic.q_min(state= s_t_n, action= act_target)  # shape (batch_size)
@@ -197,7 +199,7 @@ class D2AC_OPT(BasePolicy):
         # 2. Policy loss
         action = self.forward(batch= batch, state= 'obs', model= 'actor').act  # shape (batch_size, action_dim)
         action = to_torch(action, dtype= torch.float32, device= self.device)
-        action = action - action.mean(dim= 1, keepdim= True)
+        action = action - action.mean(dim= 1, keepdim= True)  # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
         # mean() 只接受 torch.float32，而這邊 q_min 是從神經網路出來，自然是 torch.float32
         # torch.tensor with shape(), not shape (1)
         policy_loss = -self.critic.q_min(state= state, action= action).mean()  
