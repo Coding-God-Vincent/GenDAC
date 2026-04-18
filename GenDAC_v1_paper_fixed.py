@@ -94,7 +94,7 @@ def state_preprocessing(state):
 # logit_low : lower bound of the action_logit
 # logit_hight : upper bound of the action_logit
 # return : random_logit : np.array with shape (3), real_action : np.array with shape (3)
-def get_random_actions(total_band, logit_low = -0.5, logit_high = 0.5, action_dim= 3):
+def get_random_actions(total_band, max_action, logit_low = -0.5, logit_high = 0.5, action_dim= 3):
     random_logit = np.random.uniform(low=logit_low, high=logit_high, size=(action_dim,)).astype(np.float32).copy()  # np.array with shape (action_dim)
     # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
     random_logit = random_logit - random_logit.mean()  # np.array with shape (action_dim)
@@ -162,8 +162,8 @@ def get_actions(state,
             noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.1), dtype= torch.float32, device= device)
             action_logit = action_logit + noise
     
-    # 使用當前動態傳入的 max_action 進行 Clamp
-    action_logit = torch.clamp(action_logit, -max_action, max_action)
+    # # 使用當前動態傳入的 max_action 進行 Clamp
+    # action_logit = torch.clamp(action_logit, -max_action, max_action)
 
     # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
     action_logit = action_logit - action_logit.mean(dim= 1, keepdim= True)  # (batch_size, action_dim)
@@ -418,6 +418,7 @@ for i in range(len(seeds)):
         state = state_preprocessing(state= observation_bits)
         action_logit, real_action = get_random_actions(
             total_band= total_band,
+            max_action= initial_max_action,
             logit_low= logit_low,
             logit_high= logit_high,
             action_dim= action_dim
