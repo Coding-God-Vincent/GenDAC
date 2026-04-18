@@ -23,7 +23,7 @@ import math
 # step : current step, int
 # total_steps : int
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-def get_dynamic_max_action(step, total_steps):
+def get_dynamic_max_action(step, total_steps, qoe_slack, current_success, current_max_action, threshold= 20, tolerance= 0.3):
     # if step < 500 : return 1
     # elif step < 1500 : return 2
     # elif step < 3500 : return 3
@@ -35,18 +35,27 @@ def get_dynamic_max_action(step, total_steps):
     # elif step < 1500 : return 1.0 + (step - 500) / 1000
     # else: return 2.0
     
-    if step < 500 : return 1.0
-    elif step < 1000 : return 1.1
-    elif step < 1500 : return 1.2
-    elif step < 2000 : return 1.3
-    elif step < 2500 : return 1.4
-    elif step < 3000 : return 1.5
-    elif step < 3500 : return 1.6
-    elif step < 4000 : return 1.7
-    elif step < 4500 : return 1.8
-    elif step < 5000 : return 1.9
-    else: return 2.0
-
+    # if step < 500 : return 1.0
+    # elif step < 1000 : return 1.1
+    # elif step < 1500 : return 1.2
+    # elif step < 2000 : return 1.3
+    # elif step < 2500 : return 1.4
+    # elif step < 3000 : return 1.5
+    # elif step < 3500 : return 1.6
+    # elif step < 4000 : return 1.7
+    # elif step < 4500 : return 1.8
+    # elif step < 5000 : return 1.9
+    # else: return 2.0
+    
+    success_streak = current_success
+    if qoe_slack > tolerance: success_streak = 0
+    else: success_streak += 1
+    if success_streak >= threshold and current_max_action < 3.0:
+        current_max_action = round(current_max_action + 0.1, 1)
+        success_streak = 0  # next stage
+        print("Pass ! move to next max_action !")
+    
+    return success_streak, current_max_action
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # decay the exploration rate in cosin. It's used when exploration_rate_decay is True
@@ -87,6 +96,8 @@ def state_preprocessing(state):
 # return : random_logit : np.array with shape (3), real_action : np.array with shape (3)
 def get_random_actions(total_band, logit_low = -0.5, logit_high = 0.5, action_dim= 3):
     random_logit = np.random.uniform(low=logit_low, high=logit_high, size=(action_dim,)).astype(np.float32).copy()  # np.array with shape (action_dim)
+    # 去中心化
+    random_logit = random_logit - random_logit.mean(dim= 0, keepdim= 1)  # np.array with shape (action_dim)
     proportion = torch.nn.functional.softmax(torch.from_numpy(random_logit), dim= 0).numpy()
     real_action = total_band * proportion
     return random_logit, real_action
@@ -127,6 +138,7 @@ def get_actions(state,
                 slack
     ):
     state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)
+    # action_logit : (batch_size, action_dim)
     with torch.no_grad():
         action_logit = model(state= state)
     
@@ -147,6 +159,9 @@ def get_actions(state,
     # 使用當前動態傳入的 max_action 進行 Clamp
     action_logit = torch.clamp(action_logit, -max_action, max_action)
 
+    # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
+    action_logit = action_logit - action_logit.mean(dim= 1, keepdim= True)  # (batch_size, action_dim)
+
     proportion = torch.nn.functional.softmax(action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
     return action_logit.cpu().numpy().squeeze(), real_action
@@ -160,14 +175,33 @@ def get_actions(state,
 # se : np.array with shape (1)
 # return : utility, reward : np.array with shape (1)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+# def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]
+#     if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
+#         reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10
+#     else:
+#         reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
+#     reward = np.array([reward])
+#     return utility, reward
+
+
+# reward function3 : exponential gate
 def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]
-    if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
-        reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10
-    else:
-        reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
+    # About Qoe
+    qoe_score = np.matmul(qoe_weights, qoe.reshape((3, 1)))[0] / 10.0  # int
+    qoe_slack = max(0, SLA_threshold - qoe[0]) + max(0, SLA_threshold - qoe[1]) + max(0, SLA_threshold - qoe[2])
+    qoe_penalty = min(qoe_slack * 10, 3.0)
+    # About SE
+    se_base_score = (se_weight * se[0]) / 10.0
+    decay = 50
+    se_discount = math.exp(-decay * qoe_slack)  # 依照違反程度來決定來指數衰減所得 SE 的好處 (違反越多，衰減越大)
+    # final reward 
+    reward = qoe_score - qoe_penalty + (se_base_score * se_discount)
     reward = np.array([reward])
-    return utility, reward
+    
+    return utility, reward, qoe_slack
+
 
 
 
@@ -176,10 +210,10 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = True
-exps = ['exp110', 'exp111', 'exp112', 'exp113']
-seeds = [125, 126, 127, 128]
-# exps = ['exp109']
-# seeds = [124]
+# exps = ['exp110', 'exp111', 'exp112', 'exp113']
+# seeds = [125, 126, 127, 128]
+exps = ['exp114']
+seeds = [124]
 hard_scenario = False
 DDIM = False
 
@@ -232,7 +266,8 @@ for i in range(len(seeds)):
     else: denoise_step = 3
     actor_lr = 3e-5
     critic_lr = 3e-4
-    weight_decay = 0
+    weight_decay_actor = 1e-3
+    weight_decay_critic = 0
     prioritized_replay = False
     buffer_size = 10000
     batch_size = 32
@@ -252,7 +287,7 @@ for i in range(len(seeds)):
         'denoise step' : denoise_step,
         'actor_lr' : actor_lr,
         'critic_lr' : critic_lr,
-        'weight_decay' : weight_decay,
+        'weight_decay_actor' : weight_decay_actor,
         'buffer_size' : buffer_size,
         'batch_size' : batch_size,
         'note' : note
@@ -280,7 +315,7 @@ for i in range(len(seeds)):
         # Diffusion inherits nn.Module, so actor.parameters() will be redirect to the parameters of all nn.Modules included in actor
         params= actor.parameters(),  
         lr= actor_lr,
-        weight_decay= weight_decay
+        weight_decay= weight_decay_actor  # 讓參數慢慢趨近於 0，避免數值爆炸
     )
     scheduler_actor = torch.optim.lr_scheduler.LinearLR(actor_optim, start_factor= 1.0, end_factor= 0.1, total_iters= total_timesteps)
 
@@ -288,7 +323,7 @@ for i in range(len(seeds)):
     critic_optim = torch.optim.AdamW(
         params= critic.parameters(),
         lr= critic_lr,
-        weight_decay= weight_decay
+        weight_decay= weight_decay_critic
     )
     scheduler_critic = torch.optim.lr_scheduler.LinearLR(critic_optim, start_factor= 1.0, end_factor= 0.1, total_iters= total_timesteps)
     
@@ -388,7 +423,7 @@ for i in range(len(seeds)):
         # se : np.array with shape (1)
         qoe, se = env.get_reward()
         # utility, reward : np.array with shape (1)
-        utility, reward = cal_reward(
+        utility, reward, qoe_slack = cal_reward(
             qoe= qoe,
             se= se,
             qoe_weights= qoe_weights,
@@ -439,6 +474,11 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= ps)
         writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= ps)
         writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= ps)
+        writer.add_scalar(tag= 'max_action', scalar_value= initial_max_action, global_step= ps)
+        writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= ps)
+        writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= ps)
+        writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= ps)
+
         
         observation_packets, observation_bits = next_observation_packets, next_observation_bits
         
@@ -450,12 +490,20 @@ for i in range(len(seeds)):
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # Stage2 : Training
+    current_success = 0
+    current_max_action = initial_max_action
     for frame in tqdm(range(prefill_steps, total_timesteps)):
         print(f"\n\n******Episode {frame} :")
 
         # Curicculum Learning : Adjust max_action dynamically
         # calculate the current max_action
-        current_max_action = get_dynamic_max_action(step= frame, total_steps= total_timesteps)
+        current_success, current_max_action = get_dynamic_max_action(
+            step= frame, 
+            total_steps= total_timesteps, 
+            qoe_slack= qoe_slack, 
+            current_success= current_success, 
+            current_max_action= current_max_action
+        )
         # modify max action in created instances
         # 1. diffusion.py 中有 max_action 屬性
         actor.max_action = current_max_action
@@ -488,7 +536,7 @@ for i in range(len(seeds)):
             slack_based_explore= slack_based_explore,
             slack= slack
         )
-        print(f"current_max_action = {current_max_action}, action_logits = {action_logit}")
+        print(f"sucess streak = {current_success}, current_max_action = {current_max_action}, action_logits = {action_logit}")
         # print(f"action_logit = {action_logit}, real action = {real_action}")
         # print(f"action = {real_action}")
         
@@ -521,7 +569,7 @@ for i in range(len(seeds)):
         # use qoe & se to calculate utility as a reward
         # utility = \alpha * SE + (\betas * SSRs).sum()
         # utility, reward : np.array with shape (1)
-        utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
+        utility, reward, qoe_slack = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
 
         # use qoe & SLA_threshold to calculate slack
         slack = cal_slack(qoe= qoe, SLA_threshold= SLA_threshold)
@@ -604,6 +652,10 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= frame)
         writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= frame)
         writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= frame)
+        writer.add_scalar(tag= 'max_action', scalar_value= current_max_action, global_step= frame)
+        writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= frame)
+        writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= frame)
+        writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= frame)
         
         # gain next state (loading of each NS in the previous learning window)
         observation_packets, observation_bits = env.get_state()

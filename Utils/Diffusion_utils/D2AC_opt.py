@@ -195,8 +195,9 @@ class D2AC_OPT(BasePolicy):
         recon_loss = self.actor.loss(x_0= real_actions, state= state)
 
         # 2. Policy loss
-        action = self.forward(batch= batch, state= 'obs', model= 'actor').act
+        action = self.forward(batch= batch, state= 'obs', model= 'actor').act  # shape (batch_size, action_dim)
         action = to_torch(action, dtype= torch.float32, device= self.device)
+        action = action - action.mean(dim= 1, keepdim= True)
         # mean() 只接受 torch.float32，而這邊 q_min 是從神經網路出來，自然是 torch.float32
         # torch.tensor with shape(), not shape (1)
         policy_loss = -self.critic.q_min(state= state, action= action).mean()  
