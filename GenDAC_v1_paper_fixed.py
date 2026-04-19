@@ -275,11 +275,11 @@ for i in range(len(seeds)):
     action_scale = 1.0
     total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
     beta_schedule = 'vp'
-    if fixed_UE: denoise_step = 1
+    if fixed_UE: denoise_step = 3
     else: denoise_step = 3
-    actor_lr = 3e-5
+    actor_lr = 1e-5
     critic_lr = 3e-4
-    weight_decay_actor = 1e-3
+    weight_decay_actor = 1e-2
     weight_decay_critic = 0
     prioritized_replay = False
     buffer_size = 10000
@@ -293,6 +293,7 @@ for i in range(len(seeds)):
     exploration_rate_decay = False
     SLA_threshold = 0.95
     slack_based_explore = False
+    tau = 0.001
 
     # record training parameters in tensorboard
     note = '動態調整 max_action (1->4)'
@@ -367,9 +368,10 @@ for i in range(len(seeds)):
         device= device,
         n_steps= 3,  
         with_rec_loss= True,
-        recon_param= 0.5,
+        recon_param= 1,
         lr_decay= False,
         max_action= initial_max_action,
+        tau= tau,
         # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
         action_space= fake_action_space
     )

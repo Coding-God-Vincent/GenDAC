@@ -298,7 +298,7 @@ class D2AC_OPT(BasePolicy):
         self.actor_optim.zero_grad()
         actor_loss.backward()
         # 數值通常設 0.5 或 1.0，這能有效防止訓練崩潰
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm= 0.2)
         self.actor_optim.step()
         # update all target networks
         self.update_target_networks()
