@@ -47,15 +47,17 @@ def get_dynamic_max_action(step, total_steps, qoe_slack, current_success, curren
     # elif step < 5000 : return 1.9
     # else: return 2.0
     
-    success_streak = current_success
-    if qoe_slack > tolerance: success_streak = 0
-    else: success_streak += 1
-    if success_streak >= threshold and current_max_action < 3.0:
-        current_max_action = round(current_max_action + 0.1, 1)
-        success_streak = 0  # next stage
-        print("Pass ! move to next max_action !")
+    # success_streak = current_success
+    # if qoe_slack > tolerance: success_streak = 0
+    # else: success_streak += 1
+    # if success_streak >= threshold and current_max_action < 3.0:
+    #     current_max_action = round(current_max_action + 0.1, 1)
+    #     success_streak = 0  # next stage
+    #     print("Pass ! move to next max_action !")
     
-    return success_streak, current_max_action
+    # return success_streak, current_max_action
+
+    return 1
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # decay the exploration rate in cosin. It's used when exploration_rate_decay is True
@@ -94,7 +96,7 @@ def state_preprocessing(state):
 # logit_low : lower bound of the action_logit
 # logit_hight : upper bound of the action_logit
 # return : random_logit : np.array with shape (3), real_action : np.array with shape (3)
-def get_random_actions(total_band, max_action, logit_low = -0.5, logit_high = 0.5, action_dim= 3):
+def get_random_actions(total_band, max_action, logit_low = -0.5, logit_high = 0.5, action_dim= 3, scale= True, action_scale_factor= 3):
     random_logit = np.random.uniform(low=logit_low, high=logit_high, size=(action_dim,)).astype(np.float32).copy()  # np.array with shape (action_dim)
     # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
     random_logit = random_logit - random_logit.mean()  # np.array with shape (action_dim)
@@ -104,9 +106,10 @@ def get_random_actions(total_band, max_action, logit_low = -0.5, logit_high = 0.
     scale_factor = min(1.0, max_action / (max_abs + 1e-8))
     # 執行縮放
     random_logit = random_logit * scale_factor
-    proportion = torch.nn.functional.softmax(torch.from_numpy(random_logit), dim= 0).numpy()
+    if scale: scaled_random_logit = random_logit * action_scale_factor
+    proportion = torch.nn.functional.softmax(torch.from_numpy(scaled_random_logit), dim= 0).numpy()
     real_action = total_band * proportion
-    return random_logit, real_action
+    return random_logit, scaled_random_logit, real_action
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -124,7 +127,7 @@ def moving_average(data, window_size):
 # state : np.array with shape (3)
 # slack_based_explore : bool, True -> exploration rate adjust with slack dynamically, False -> use static exploration rate or decay in cosin
 # exploration_rate_decay : dynamically 
-# return : action_logit, real_action : np.array with shape (3)
+# return : action_logit, scaled_action_logit, real_action : np.array with shape (3)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 noise_generator = GaussianNoise()
 def get_actions(state, 
@@ -141,7 +144,9 @@ def get_actions(state,
                 start_rate, 
                 end_rate, 
                 slack_based_explore, 
-                slack
+                slack,
+                scale,
+                action_scale_factor
     ):
     state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)
     # action_logit : (batch_size, action_dim)
@@ -175,9 +180,11 @@ def get_actions(state,
     scale_factor = torch.clamp(max_action / (max_abs + 1e-8), max= 1.0)
     action_logit = action_logit * scale_factor
 
-    proportion = torch.nn.functional.softmax(action_logit, dim= 1).cpu().numpy().squeeze()
+    if scale: scaled_action_logit = action_logit * action_scale_factor
+
+    proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
-    return action_logit.cpu().numpy().squeeze(), real_action
+    return action_logit.cpu().numpy().squeeze(), scaled_action_logit.cpu().numpy().squeeze(), real_action
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -272,14 +279,15 @@ for i in range(len(seeds)):
     initial_max_action = 1  # will be updated during training (curriculum learning)
     logit_low = -0.5
     logit_high = 0.5
-    action_scale = 1.0
+    scale = True  # scale the action or not
+    action_scale_factor = 3.0
     total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
     beta_schedule = 'vp'
     if fixed_UE: denoise_step = 3
     else: denoise_step = 3
-    actor_lr = 1e-5
+    actor_lr = 3e-5
     critic_lr = 3e-4
-    weight_decay_actor = 1e-2
+    weight_decay_actor = 1e-4
     weight_decay_critic = 0
     prioritized_replay = False
     buffer_size = 10000
@@ -293,7 +301,7 @@ for i in range(len(seeds)):
     exploration_rate_decay = False
     SLA_threshold = 0.95
     slack_based_explore = False
-    tau = 0.001
+    tau = 0.005
 
     # record training parameters in tensorboard
     note = '動態調整 max_action (1->4)'
@@ -418,14 +426,16 @@ for i in range(len(seeds)):
     for ps in range(prefill_steps):
         print(f"\nPrefill step : {ps}")
         state = state_preprocessing(state= observation_bits)
-        action_logit, real_action = get_random_actions(
+        action_logit, scaled_random_logit, real_action = get_random_actions(
             total_band= total_band,
             max_action= initial_max_action,
             logit_low= logit_low,
             logit_high= logit_high,
-            action_dim= action_dim
+            action_dim= action_dim,
+            scale= scale,
+            action_scale_factor= action_scale_factor
         )
-        print(f"action logit = {action_logit}")
+        print(f"action logit = {action_logit}, scaled action logit = {scaled_random_logit}, proportion = {real_action / 10000000}")
         env.band_ser_cat = real_action
         # 2000 slots in 1 learning window
         for i in range(learning_windows):
@@ -513,7 +523,7 @@ for i in range(len(seeds)):
 
         # Curicculum Learning : Adjust max_action dynamically
         # calculate the current max_action
-        current_success, current_max_action = get_dynamic_max_action(
+        current_max_action = get_dynamic_max_action(
             step= frame, 
             total_steps= total_timesteps, 
             qoe_slack= qoe_slack, 
@@ -535,7 +545,7 @@ for i in range(len(seeds)):
 
         # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
         # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
-        action_logit, real_action = get_actions(
+        action_logit, scaled_action_logit, real_action = get_actions(
             state= state, 
             state_dim= state_dim,
             total_band= total_band, 
@@ -550,9 +560,11 @@ for i in range(len(seeds)):
             start_rate= start_exploration_rate,
             end_rate= end_exploration_rate,
             slack_based_explore= slack_based_explore,
-            slack= slack
+            slack= slack,
+            scale= scale,
+            scaled_action_logit= scaled_action_logit
         )
-        print(f"sucess streak = {current_success}, current_max_action = {current_max_action}, action_logits = {action_logit}")
+        print(f"action_logits = {action_logit}, scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
         # print(f"action_logit = {action_logit}, real action = {real_action}")
         # print(f"action = {real_action}")
         
