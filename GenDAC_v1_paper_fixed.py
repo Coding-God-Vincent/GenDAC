@@ -136,7 +136,6 @@ def get_actions(state,
                 model, 
                 device, 
                 max_action, 
-                action_scale, 
                 exploration_rate_decay, 
                 step, 
                 start_step, 
@@ -164,9 +163,11 @@ def get_actions(state,
             exploration_rate = get_exploration_rate(step= step, start_ep= start_step, end_ep= end_step, start_rate= start_rate, end_rate= end_rate)
         else: exploration_rate = start_rate
         if np.random.rand() < exploration_rate:   
-            noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.1), dtype= torch.float32, device= device)
+            noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.05), dtype= torch.float32, device= device)
             action_logit = action_logit + noise
     
+    original_logit = action_logit.clone()
+
     # # 使用當前動態傳入的 max_action 進行 Clamp
     # action_logit = torch.clamp(action_logit, -max_action, max_action)
 
@@ -184,7 +185,7 @@ def get_actions(state,
 
     proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
-    return action_logit.cpu().numpy().squeeze(), scaled_action_logit.cpu().numpy().squeeze(), real_action
+    return original_logit.cpu().numpy().squeeze(), action_logit.cpu().numpy().squeeze(), scaled_action_logit.cpu().numpy().squeeze(), real_action
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -211,16 +212,17 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
     # About Qoe
     qoe_score = np.matmul(qoe_weights, qoe.reshape((3, 1)))[0] / 10.0  # int
     qoe_slack = max(0, SLA_threshold - qoe[0]) + max(0, SLA_threshold - qoe[1]) + max(0, SLA_threshold - qoe[2])
-    qoe_penalty = min(qoe_slack * 10, 3.0)
+    # qoe_penalty = qoe_slack * 2.0
+    qoe_penalty = 0.0
     # About SE
     se_base_score = (se_weight * se[0]) / 10.0
-    decay = 50
+    decay = 10
     se_discount = math.exp(-decay * qoe_slack)  # 依照違反程度來決定來指數衰減所得 SE 的好處 (違反越多，衰減越大)
     # final reward 
     reward = qoe_score - qoe_penalty + (se_base_score * se_discount)
     reward = np.array([reward])
     
-    return utility, reward, qoe_slack
+    return utility, reward, qoe_slack, (se_base_score * se_discount)
 
 
 
@@ -232,7 +234,7 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 fixed_UE = True
 # exps = ['exp110', 'exp111', 'exp112', 'exp113']
 # seeds = [125, 126, 127, 128]
-exps = ['exp114']
+exps = ['exp115']
 seeds = [124]
 hard_scenario = False
 DDIM = False
@@ -285,7 +287,7 @@ for i in range(len(seeds)):
     beta_schedule = 'vp'
     if fixed_UE: denoise_step = 3
     else: denoise_step = 3
-    actor_lr = 3e-5
+    actor_lr = 1e-5
     critic_lr = 3e-4
     weight_decay_actor = 1e-4
     weight_decay_critic = 0
@@ -376,7 +378,7 @@ for i in range(len(seeds)):
         device= device,
         n_steps= 3,  
         with_rec_loss= True,
-        recon_param= 1,
+        recon_param= 0.5,
         lr_decay= False,
         max_action= initial_max_action,
         tau= tau,
@@ -449,7 +451,7 @@ for i in range(len(seeds)):
         # se : np.array with shape (1)
         qoe, se = env.get_reward()
         # utility, reward : np.array with shape (1)
-        utility, reward, qoe_slack = cal_reward(
+        utility, reward, qoe_slack, _ = cal_reward(
             qoe= qoe,
             se= se,
             qoe_weights= qoe_weights,
@@ -531,12 +533,12 @@ for i in range(len(seeds)):
             current_max_action= current_max_action
         )
         # modify max action in created instances
-        # 1. diffusion.py 中有 max_action 屬性
-        actor.max_action = current_max_action
-        # d2ac_opt.py 中有建立 target_actor，那也有 max_action
-        d2ac_opt.target_actor.max_action = current_max_action
-        # 2. D2AC_opt.py 中有 max_action 屬性
-        d2ac_opt.max_action = current_max_action
+        # # 1. diffusion.py 中有 max_action 屬性
+        # actor.max_action = current_max_action
+        # # d2ac_opt.py 中有建立 target_actor，那也有 max_action
+        # d2ac_opt.target_actor.max_action = current_max_action
+        # # 2. D2AC_opt.py 中有 max_action 屬性
+        # d2ac_opt.max_action = current_max_action
 
         # state is the loading (no. of packets) of each NS of the previous learning window
         state = state_preprocessing(state= observation_bits)  
@@ -545,14 +547,13 @@ for i in range(len(seeds)):
 
         # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
         # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
-        action_logit, scaled_action_logit, real_action = get_actions(
+        origianl_logit, action_logit, scaled_action_logit, real_action = get_actions(
             state= state, 
             state_dim= state_dim,
             total_band= total_band, 
             model= actor, 
             device= device, 
             max_action= current_max_action,
-            action_scale= action_scale,
             exploration_rate_decay= exploration_rate_decay,
             step= frame,
             start_step= start_step,
@@ -562,9 +563,10 @@ for i in range(len(seeds)):
             slack_based_explore= slack_based_explore,
             slack= slack,
             scale= scale,
-            scaled_action_logit= scaled_action_logit
+            action_scale_factor= action_scale_factor
         )
-        print(f"action_logits = {action_logit}, scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
+        print(f"original_logits = {origianl_logit}, action_logits = {action_logit}")
+        print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
         # print(f"action_logit = {action_logit}, real action = {real_action}")
         # print(f"action = {real_action}")
         
@@ -597,7 +599,7 @@ for i in range(len(seeds)):
         # use qoe & se to calculate utility as a reward
         # utility = \alpha * SE + (\betas * SSRs).sum()
         # utility, reward : np.array with shape (1)
-        utility, reward, qoe_slack = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
+        utility, reward, qoe_slack, se_part = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
 
         # use qoe & SLA_threshold to calculate slack
         slack = cal_slack(qoe= qoe, SLA_threshold= SLA_threshold)
@@ -643,7 +645,7 @@ for i in range(len(seeds)):
         # Critic_losses.append(loss['critic_loss'].item())
 
         # print the outcome of the current learning window
-        print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}")
+        print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}")
         writer.add_scalar(tag= 'idle_frame/urllc', scalar_value= urllc_UE_slot, global_step= frame)
         writer.add_scalar(tag= 'idle_frame/volte', scalar_value= volte_UE_slot, global_step= frame)
         writer.add_scalar(tag= 'idle_frame/embb', scalar_value= embb_UE_slot, global_step= frame)

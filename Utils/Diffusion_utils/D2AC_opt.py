@@ -195,6 +195,7 @@ class D2AC_OPT(BasePolicy):
         update : bool = False  # 是否在此函式中進行 actor 的參數更新
     ):
         state = to_torch(batch.obs, dtype= torch.float32, device= self.device)
+        
         # 1. reconstruction loss
         # shape (batch_size, action_dim)
         real_actions = to_torch(batch.act, dtype= torch.float32, device= self.device)
@@ -202,22 +203,29 @@ class D2AC_OPT(BasePolicy):
         # torch.tensor with shape(), not shape (1)
         recon_loss = self.actor.loss(x_0= real_actions, state= state)
 
-        # 2. Policy loss
+        # 2. action penalty
         action = self.forward(batch= batch, state= 'obs', model= 'actor').act  # shape (batch_size, action_dim)
         action = to_torch(action, dtype= torch.float32, device= self.device)
-        action = action - action.mean(dim= 1, keepdim= True)  # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
-        # 找出絕對值最大者
+        # 為避免 bang-bang control 問題，加上 action penalty
+        raw_logit = action.clone()
+        penalty_weight = 0.01
+        action_penalty = (raw_logit ** 2).sum(dim= -1).mean()
+        
+        # 對 Logit 做中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [0, 0, 0] 的差別
+        action = action - action.mean(dim= 1, keepdim= True)  
         max_abs = torch.max(torch.abs(action), dim=1, keepdim=True)[0]
         # 算出縮放比例 (使用 self.max_action)
         scale_factor = torch.clamp(self.max_action / (max_abs + 1e-8), max=1.0)
         # 執行縮放
         action = action * scale_factor
+        
+        # 3. policy loss
         # mean() 只接受 torch.float32，而這邊 q_min 是從神經網路出來，自然是 torch.float32
         # torch.tensor with shape(), not shape (1)
         policy_loss = -self.critic.q_min(state= state, action= action).mean()  
         
-        if self.with_rec_loss: actor_loss = policy_loss + self.recon_param * recon_loss
-        else: actor_loss = policy_loss
+        if self.with_rec_loss: actor_loss = policy_loss + self.recon_param * recon_loss + penalty_weight * action_penalty 
+        else: actor_loss = policy_loss + penalty_weight * action_penalty
 
         if update:
             self.actor_optim.zero_grad()
@@ -298,7 +306,7 @@ class D2AC_OPT(BasePolicy):
         self.actor_optim.zero_grad()
         actor_loss.backward()
         # 數值通常設 0.5 或 1.0，這能有效防止訓練崩潰
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm= 0.2)
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm= 0.5)
         self.actor_optim.step()
         # update all target networks
         self.update_target_networks()
