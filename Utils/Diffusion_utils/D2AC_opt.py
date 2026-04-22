@@ -206,10 +206,13 @@ class D2AC_OPT(BasePolicy):
         # 2. action penalty
         action = self.forward(batch= batch, state= 'obs', model= 'actor').act  # shape (batch_size, action_dim)
         action = to_torch(action, dtype= torch.float32, device= self.device)
-        # 為避免 bang-bang control 問題，加上 action penalty
+        # 為避免 bang-bang control 問題，加上 margin action penalty
+        safe_margin = 0.8
         raw_logit = action.clone()
-        penalty_weight = 0.01
-        action_penalty = (raw_logit ** 2).sum(dim= -1).mean()
+        out_of_bound_logit = torch.clamp(torch.abs(raw_logit) - safe_margin, min= 0.0)
+        penalty_weight = 10.0
+        action_penalty = (out_of_bound_logit ** 2).sum(dim= -1).mean()
+        action_penalty = action_penalty * penalty_weight
         
         # 對 Logit 做中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [0, 0, 0] 的差別
         action = action - action.mean(dim= 1, keepdim= True)  
@@ -224,8 +227,8 @@ class D2AC_OPT(BasePolicy):
         # torch.tensor with shape(), not shape (1)
         policy_loss = -self.critic.q_min(state= state, action= action).mean()  
         
-        if self.with_rec_loss: actor_loss = policy_loss + self.recon_param * recon_loss + penalty_weight * action_penalty 
-        else: actor_loss = policy_loss + penalty_weight * action_penalty
+        if self.with_rec_loss: actor_loss = policy_loss + self.recon_param * recon_loss + action_penalty 
+        else: actor_loss = policy_loss + action_penalty
 
         if update:
             self.actor_optim.zero_grad()
@@ -233,7 +236,7 @@ class D2AC_OPT(BasePolicy):
             torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
             self.actor_optim.step()
 
-        return actor_loss, policy_loss, recon_loss
+        return actor_loss, policy_loss, recon_loss, action_penalty
         
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -285,7 +288,7 @@ class D2AC_OPT(BasePolicy):
         # update DoubleCritic through batch
         critic_loss = self.update_critic(batch= batch)
         # evaluate actor_loss, policy_loss, recon_loss
-        actor_loss, policy_loss, recon_loss = self.update_policy(batch= batch, update= False)
+        actor_loss, policy_loss, recon_loss, action_penalty = self.update_policy(batch= batch, update= False)
 
         # verify the proportion of the effective gradient
         # ===== (A) policy_loss 的 actor grad norm =====
@@ -294,9 +297,16 @@ class D2AC_OPT(BasePolicy):
         grad_norm_policy, grad_cov_policy = self._grad_stats(params= self.actor.parameters())
         self.critic.zero_grad(set_to_none=True)  # 會污染到 Critic 梯度，故清掉
         # ===== (B) recon_loss 的 actor grad norm =====
+        if self.with_rec_loss == False: grad_norm_rec, grad_cov_rec = 0.0, 0.0
+        else:
+            self.actor_optim.zero_grad(set_to_none=True)
+            recon_loss.backward(retain_graph=True)
+            grad_norm_rec, grad_cov_rec = self._grad_stats(params= self.actor.parameters())
+            self.critic.zero_grad(set_to_none=True)  # 會污染到 Critic 梯度，故清掉
+        # ===== (C) action_penalty 的 actor grad norm =====
         self.actor_optim.zero_grad(set_to_none=True)
-        recon_loss.backward(retain_graph=True)
-        grad_norm_rec, grad_cov_rec = self._grad_stats(params= self.actor.parameters())
+        action_penalty.backward(retain_graph=True)
+        grad_norm_ap, grad_cov_ap = self._grad_stats(params= self.actor.parameters())
         self.critic.zero_grad(set_to_none=True)  # 會污染到 Critic 梯度，故清掉
         # 清掉，避免污染真正更新
         self.actor_optim.zero_grad(set_to_none=True)
@@ -315,12 +325,15 @@ class D2AC_OPT(BasePolicy):
         return {
             'grad_norm_rec': grad_norm_rec,
             'grad_norm_policy': grad_norm_policy,
+            'grad_norm_ap': grad_norm_ap,
             'grad_cov_rec': grad_cov_rec,
             'grad_cov_policy': grad_cov_policy,
+            'grad_cov_ap' : grad_cov_ap,
             'critic_loss': critic_loss,  # torch.tensor shape ()
             'actor_loss': actor_loss,    # torch.tensor shape ()
             'policy_loss': policy_loss,
-            'recon_loss': recon_loss
+            'recon_loss': recon_loss,
+            'action_penalty' : action_penalty
         }
     
 

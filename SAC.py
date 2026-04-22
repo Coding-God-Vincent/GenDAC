@@ -11,6 +11,7 @@ from Env.env_movingUE import EnvMove
 from Utils.SAC_utils import Model, ReplayBuffer, SACopt
 from Utils.seed import set_seed
 from pprint import pprint
+import math
 
 
 '''SAC 作法硬傷
@@ -21,11 +22,11 @@ from pprint import pprint
     ex : 假設經過 tanh 之後輸出 : [1, -1, -1] (這已經是最極端的分配的)，乘上 5 之後就變成 [5, -5, -5] 會得到 [0.9999..., 4.5396e-05, 4.5396e-05]
 '''
 
-exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
-exps_moving = ['exp19', 'exp20', 'exp21', 'exp22', 'exp23']
+exps_fixed = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
+exps_moving = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
 seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [True, False]
-hard_scenario = True
+hard_scenario = False
 
 for fixed in fixed_or_not:
 
@@ -171,15 +172,34 @@ for fixed in fixed_or_not:
         # 自創 reward function2 -> 就分兩種情況就好，一種是已經滿足所有 SSR，另一種是滿足所有 SSR 了。
         # reward : shape (1), utility.shape (1)
         # se : np.int with shape (1), qoe : np.array with shape (3)
-        def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-            SLA_threshold = 0.95
-            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
-            if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
-                reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
-            else:
-                reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
-            reward = np.array([reward])
+        # def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+        #     SLA_threshold = 0.95
+        #     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+        #     if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
+        #         reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
+        #     else:
+        #         reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
+        #     reward = np.array([reward])
 
+        #     return utility, reward
+
+        
+        # reward function3 : exponential gate
+        def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
+            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]
+            # About Qoe
+            qoe_score = np.matmul(qoe_weights, qoe.reshape((3, 1)))[0] / 10.0  # int
+            qoe_slack = max(0, SLA_threshold - qoe[0]) + max(0, SLA_threshold - qoe[1]) + max(0, SLA_threshold - qoe[2])
+            # qoe_penalty = qoe_slack * 2.0
+            qoe_penalty = 0.0
+            # About SE
+            se_base_score = (se_weight * se[0]) / 10.0
+            decay = 10
+            se_discount = math.exp(-decay * qoe_slack)  # 依照違反程度來決定來指數衰減所得 SE 的好處 (違反越多，衰減越大)
+            # final reward 
+            reward = qoe_score - qoe_penalty + (se_base_score * se_discount)
+            reward = np.array([reward])
+            
             return utility, reward
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -191,9 +211,11 @@ for fixed in fixed_or_not:
         ser_cat = ['volte', 'embb_general', 'urllc']
         qoe_weights = [1, 1, 1]
         se_weight = 0.01
-        total_band = 20 * 10**6  # unit : MHz
+        if hard_scenario: total_band = 20 * 10**6  # unit : MHz
+        else: total_band = 10 * 10 ** 6
         total_timesteps = 10000
-        dl_mimo = 3
+        if hard_scenario : dl_mimo = 3
+        else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = hard_scenario) 
@@ -207,7 +229,7 @@ for fixed in fixed_or_not:
         tau = 0.005  # soft update params
         lr = 3e-4  # learning rate of actor & critic
         alpha_lr = 3e-4  # learning rate of alpha (used in controlling the impact of the Entropy)
-        ACTION_SCALE = 5.0
+        ACTION_SCALE = 3.0
         state_dim = len(ser_cat)
         action_dim = len(ser_cat)
 
@@ -252,6 +274,7 @@ for fixed in fixed_or_not:
 
         for frame in tqdm(range(1, total_timesteps+1)):
             print(f"\n\n******Episode {frame} :")
+            # ACTION_SCALE = min(1.0, 1.0 + (frame / 5000.0) * 2.0)
             action_tanh = Sacopt.select_action(state= state)  # tensor (cpu) with shape (3)
             action_scaled = action_tanh * ACTION_SCALE  # tensor (cpu) with shape (3)
             action = F.softmax(action_scaled, dim= 0) * total_band  # tensor (cpu) with shape (3)

@@ -163,7 +163,7 @@ def get_actions(state,
             exploration_rate = get_exploration_rate(step= step, start_ep= start_step, end_ep= end_step, start_rate= start_rate, end_rate= end_rate)
         else: exploration_rate = start_rate
         if np.random.rand() < exploration_rate:   
-            noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.05), dtype= torch.float32, device= device)
+            noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.2), dtype= torch.float32, device= device)
             action_logit = action_logit + noise
     
     original_logit = action_logit.clone()
@@ -232,524 +232,538 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = True
-# exps = ['exp110', 'exp111', 'exp112', 'exp113']
-# seeds = [125, 126, 127, 128]
-exps = ['exp115']
-seeds = [124]
+exps_1 = ['exp123', 'exp124', 'exp125', 'exp126', 'exp127']
+exps_5 = ['exp128', 'exp129', 'exp130', 'exp131', 'exp132']
+exps_7 = ['exp133', 'exp134', 'exp135', 'exp136', 'exp137']
+
+seeds = [124, 125, 126, 127, 128]
+steps = [1, 5, 7]
+# exps = ['exp141']
+# seeds = [124]
 hard_scenario = False
 DDIM = False
 
-
-for i in range(len(seeds)):
-
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    set_seed(seed= seeds[i])
-    if fixed_UE: print("\n================================================== Fixed_UE env ==================================================\n")
-    else: print("\n================================================== Moving_UE env ==================================================\n")
-    # 設定圖片 / log 路徑
-    algo_name = 'GenDAC'
-    exp_name = exps[i]
-
-    log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-    log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
-    # generate log writer
-    writer = SummaryWriter(log_dir= log_path)
-
-    # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
-    # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
-    # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
-    # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp19/tensorboard"
-    # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
-
-    if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
-    else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
-    image_path.mkdir(parents=True, exist_ok=True)
-
-    '''Main'''
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # setup
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # set the device
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    # env parameters
-    ser_cat = ['volte', 'embb_general', 'urllc']
-    state_dim = len(ser_cat)
-    action_dim = len(ser_cat)
-
-    # training parameters
-    initial_max_action = 1  # will be updated during training (curriculum learning)
-    logit_low = -0.5
-    logit_high = 0.5
-    scale = True  # scale the action or not
-    action_scale_factor = 3.0
-    total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
-    beta_schedule = 'vp'
-    if fixed_UE: denoise_step = 3
-    else: denoise_step = 3
-    actor_lr = 1e-5
-    critic_lr = 3e-4
-    weight_decay_actor = 1e-4
-    weight_decay_critic = 0
-    prioritized_replay = False
-    buffer_size = 10000
-    batch_size = 32
-    prior_alpha = 0.4
-    prior_beta = 0.4
-    start_exploration_rate = 0.1
-    end_exploration_rate = 0.1
-    start_step = 150
-    end_step = 1000
-    exploration_rate_decay = False
-    SLA_threshold = 0.95
-    slack_based_explore = False
-    tau = 0.005
-
-    # record training parameters in tensorboard
-    note = '動態調整 max_action (1->4)'
-    hparams_dict = {
-        'denoise step' : denoise_step,
-        'actor_lr' : actor_lr,
-        'critic_lr' : critic_lr,
-        'weight_decay_actor' : weight_decay_actor,
-        'buffer_size' : buffer_size,
-        'batch_size' : batch_size,
-        'note' : note
-    }
-
-
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # generate models
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    gdm = GDM(state_dim= state_dim, action_dim= action_dim)
-    actor = Diffusion(
-        state_dim= state_dim,
-        action_dim= action_dim,
-        model= gdm,
-        max_action= initial_max_action,
-        beta_schedule= beta_schedule,
-        denoise_steps= denoise_step,
-        # 用 True 的原因為 : (原始 DDPM 也是這樣)
-        # 每一步都 clamp -> 越低的機率出現那種超大的值 -> 被 clamp 的機率越低 -> 學習越穩定。
-        clip_denoised= True,  # True -> 中間的每一步的 x_0 都會被 clamp 掉
-        device= device,
-        DDIM= DDIM
-    ).to(device= device)
-    actor_optim = torch.optim.AdamW(
-        # Diffusion inherits nn.Module, so actor.parameters() will be redirect to the parameters of all nn.Modules included in actor
-        params= actor.parameters(),  
-        lr= actor_lr,
-        weight_decay= weight_decay_actor  # 讓參數慢慢趨近於 0，避免數值爆炸
-    )
-    scheduler_actor = torch.optim.lr_scheduler.LinearLR(actor_optim, start_factor= 1.0, end_factor= 0.1, total_iters= total_timesteps)
-
-    critic = DoubleCritic(state_dim= state_dim, action_dim= action_dim).to(device= device)
-    critic_optim = torch.optim.AdamW(
-        params= critic.parameters(),
-        lr= critic_lr,
-        weight_decay= weight_decay_critic
-    )
-    scheduler_critic = torch.optim.lr_scheduler.LinearLR(critic_optim, start_factor= 1.0, end_factor= 0.1, total_iters= total_timesteps)
+for ds in steps:
     
+    if ds == 1: exps = exps_1
+    elif ds == 5: exps = exps_5
+    else: exps = exps_7
+    
+    for i in range(len(seeds)):
 
-    # generate the ReplayBuffer
-    if prioritized_replay: 
-        buffer = PrioritizedReplayBuffer(
-            size= buffer_size,
-            # used to control the strength of the prioritization (alpha = 0 : uniform, alpha = 1 : complete prioritized)
-            alpha= prior_alpha,
-            # used to control the strength of revision of the sampling bias
-            beta= prior_beta
-        )
-    else: buffer = ReplayBuffer(size= buffer_size)
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        set_seed(seed= seeds[i])
+        if fixed_UE: print("\n================================================== Fixed_UE env ==================================================\n")
+        else: print("\n================================================== Moving_UE env ==================================================\n")
+        # 設定圖片 / log 路徑
+        algo_name = 'GenDAC'
+        exp_name = exps[i]
 
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # generate an instance of D2AC_OPT to handle the update of the model
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    fake_action_space = Discrete(3)
-    fake_action_space = Box(low= -1, high= 1, shape= (3,))
-    d2ac_opt = D2AC_OPT(
-        state_dim= state_dim,
-        action_dim= action_dim,
-        actor= actor,
-        actor_optim= actor_optim,
-        critic= critic,
-        critic_optim= critic_optim,
-        device= device,
-        n_steps= 3,  
-        with_rec_loss= True,
-        recon_param= 0.5,
-        lr_decay= False,
-        max_action= initial_max_action,
-        tau= tau,
-        # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
-        action_space= fake_action_space
-    )
+        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
+        # generate log writer
+        writer = SummaryWriter(log_dir= log_path)
 
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # generate the env
-    # ser_cat = ['volte', 'embb_general', 'urllc']
-    if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
-    else: total_band = 10 * 10**6
-    # J = \alpha * SE + \betas * SSRs
-    qoe_weights = [1, 1, 1]  # \betas
-    se_weight = 0.01  # \alpha (原論文設定為 0.01)
-    learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
-    prefill_steps = 3 * batch_size
-    if hard_scenario: dl_mimo = 3  # 原本是 64
-    else: dl_mimo = 16
-    UE_no = 100 if fixed_UE else 300
-    if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
-    else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
-    env.countReset()  # reset 所有計數器
-    if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
-    env.activity()  # 所有 UE 開始根據其網路切片產生封包
-    # observation_packets : total packets of each NSs, np.array with shape (3)
-    # observation_bits : total bits of each NSs, np.array with shape (3)
-    observation_packets, observation_bits = env.get_state()  
+        # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
+        # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
+        # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
+        # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp19/tensorboard"
+        # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # recording lists
-    QoEs = []
-    SEs = []
-    Utilities = []
-    Rewards = []
-    Observations = []
-    Actor_losses = []
-    Critic_losses = []
+        if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
+        else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
+        image_path.mkdir(parents=True, exist_ok=True)
+
+        '''Main'''
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # setup
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # set the device
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        # env parameters
+        ser_cat = ['volte', 'embb_general', 'urllc']
+        state_dim = len(ser_cat)
+        action_dim = len(ser_cat)
+
+        # training parameters
+        initial_max_action = 1  # will be updated during training (curriculum learning)
+        logit_low = -0.5
+        logit_high = 0.5
+        scale = True  # scale the action or not
+        action_scale_factor = 3.0
+        total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
+        beta_schedule = 'vp'
+        if fixed_UE: denoise_step = ds
+        else: denoise_step = 3
+        actor_lr = 3e-4
+        critic_lr = 1e-3
+        weight_decay_actor = 1e-4
+        weight_decay_critic = 1e-3
+        prioritized_replay = False
+        buffer_size = 10000
+        batch_size = 32
+        prior_alpha = 0.4
+        prior_beta = 0.4
+        start_exploration_rate = 0.1
+        end_exploration_rate = 0.1
+        start_step = 150
+        end_step = 1000
+        exploration_rate_decay = False
+        SLA_threshold = 0.95
+        slack_based_explore = False
+        tau = 0.005
+
+        # record training parameters in tensorboard
+        note = '動態調整 max_action (1->4)'
+        hparams_dict = {
+            'denoise step' : denoise_step,
+            'actor_lr' : actor_lr,
+            'critic_lr' : critic_lr,
+            'weight_decay_actor' : weight_decay_actor,
+            'buffer_size' : buffer_size,
+            'batch_size' : batch_size,
+            'note' : note
+        }
 
 
-    '''Training Procedure'''
-    slack = 0.0
-
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # Stage1 : Prefill 
-    print("=================================Prefilliing=================================")
-    for ps in range(prefill_steps):
-        print(f"\nPrefill step : {ps}")
-        state = state_preprocessing(state= observation_bits)
-        action_logit, scaled_random_logit, real_action = get_random_actions(
-            total_band= total_band,
-            max_action= initial_max_action,
-            logit_low= logit_low,
-            logit_high= logit_high,
-            action_dim= action_dim,
-            scale= scale,
-            action_scale_factor= action_scale_factor
-        )
-        print(f"action logit = {action_logit}, scaled action logit = {scaled_random_logit}, proportion = {real_action / 10000000}")
-        env.band_ser_cat = real_action
-        # 2000 slots in 1 learning window
-        for i in range(learning_windows):
-            env.scheduling()  # do lower-level allocation every timeslots
-            env.provisioning()  # evaluate the SE & SSR of the current timeslot
-            env.activity()  # assign readtime & generate packet according to the readtime
-
-        dropped_packets = env.eval_get_obs3()  # np.array with shape (3) (volte / embb/ urllc)
-        
-        # qoe : np.array with shape (3)
-        # se : np.array with shape (1)
-        qoe, se = env.get_reward()
-        # utility, reward : np.array with shape (1)
-        utility, reward, qoe_slack, _ = cal_reward(
-            qoe= qoe,
-            se= se,
-            qoe_weights= qoe_weights,
-            se_weight= se_weight,
-            SLA_threshold= SLA_threshold,
-            reward_clipping= False
-        )
-        # Record the values of the current learning window
-        QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
-        SEs.append(se.tolist()[0])  # se.tolist() -> [se]
-        Rewards.append(reward.item())  
-        Utilities.append(utility.item())
-        
-        next_observation_packets, next_observation_bits = env.get_state()
-        obs_next = state_preprocessing(next_observation_bits)
-
-        data = Batch(
-            obs= state,
-            act= action_logit,
-            rew= reward.squeeze(),
-            terminated= False,
-            truncated= False,
-            obs_next= obs_next
-        )
-        buffer.add(data)
-        
-        # print the outcome of the current learning window
-        print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}")
-        
-        writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= ps)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-        writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= ps)
-        writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= ps)
-        writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0], global_step= ps)  # 分配比例
-        writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1], global_step= ps)
-        writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2], global_step= ps)
-        writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= ps)
-        writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= ps)
-        writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= ps)
-        writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= ps)
-        writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= ps)
-        writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= ps)
-        writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= ps)
-        writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= ps)
-        writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= ps)
-        writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= ps)
-        writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= ps)
-        writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= ps)
-        writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= ps)
-        writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= ps)
-        writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= ps)
-        writer.add_scalar(tag= 'max_action', scalar_value= initial_max_action, global_step= ps)
-        writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= ps)
-        writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= ps)
-        writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= ps)
-
-        
-        observation_packets, observation_bits = next_observation_packets, next_observation_bits
-        
-        # reset all counters after each learning window
-        env.countReset()
-
-        # if using the env of LSTM-A2C then move the users
-        if not fixed_UE: env.user_move()
-
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    # Stage2 : Training
-    current_success = 0
-    current_max_action = initial_max_action
-    for frame in tqdm(range(prefill_steps, total_timesteps)):
-        print(f"\n\n******Episode {frame} :")
-
-        # Curicculum Learning : Adjust max_action dynamically
-        # calculate the current max_action
-        current_max_action = get_dynamic_max_action(
-            step= frame, 
-            total_steps= total_timesteps, 
-            qoe_slack= qoe_slack, 
-            current_success= current_success, 
-            current_max_action= current_max_action
-        )
-        # modify max action in created instances
-        # # 1. diffusion.py 中有 max_action 屬性
-        # actor.max_action = current_max_action
-        # # d2ac_opt.py 中有建立 target_actor，那也有 max_action
-        # d2ac_opt.target_actor.max_action = current_max_action
-        # # 2. D2AC_opt.py 中有 max_action 屬性
-        # d2ac_opt.max_action = current_max_action
-
-        # state is the loading (no. of packets) of each NS of the previous learning window
-        state = state_preprocessing(state= observation_bits)  
-        # print(f"observation_packets = {observation_packets}, observation_bits = {observation_bits}")
-        # print(f"state = {state}")  # 介於 [1, 2]
-
-        # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
-        # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
-        origianl_logit, action_logit, scaled_action_logit, real_action = get_actions(
-            state= state, 
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # generate models
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        gdm = GDM(state_dim= state_dim, action_dim= action_dim)
+        actor = Diffusion(
             state_dim= state_dim,
-            total_band= total_band, 
-            model= actor, 
-            device= device, 
-            max_action= current_max_action,
-            exploration_rate_decay= exploration_rate_decay,
-            step= frame,
-            start_step= start_step,
-            end_step= end_step,
-            start_rate= start_exploration_rate,
-            end_rate= end_exploration_rate,
-            slack_based_explore= slack_based_explore,
-            slack= slack,
-            scale= scale,
-            action_scale_factor= action_scale_factor
+            action_dim= action_dim,
+            model= gdm,
+            max_action= initial_max_action,
+            beta_schedule= beta_schedule,
+            denoise_steps= denoise_step,
+            # 用 True 的原因為 : (原始 DDPM 也是這樣)
+            # 每一步都 clamp -> 越低的機率出現那種超大的值 -> 被 clamp 的機率越低 -> 學習越穩定。
+            clip_denoised= True,  # True -> 中間的每一步的 x_0 都會被 clamp 掉
+            device= device,
+            DDIM= DDIM
+        ).to(device= device)
+        actor_optim = torch.optim.AdamW(
+            # Diffusion inherits nn.Module, so actor.parameters() will be redirect to the parameters of all nn.Modules included in actor
+            params= actor.parameters(),  
+            lr= actor_lr,
+            weight_decay= weight_decay_actor  # 讓參數慢慢趨近於 0，避免數值爆炸
         )
-        print(f"original_logits = {origianl_logit}, action_logits = {action_logit}")
-        print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
-        # print(f"action_logit = {action_logit}, real action = {real_action}")
-        # print(f"action = {real_action}")
+        scheduler_actor = torch.optim.lr_scheduler.LinearLR(actor_optim, start_factor= 1.0, end_factor= 0.1, total_iters= total_timesteps)
+
+        critic = DoubleCritic(state_dim= state_dim, action_dim= action_dim).to(device= device)
+        critic_optim = torch.optim.AdamW(
+            params= critic.parameters(),
+            lr= critic_lr,
+            weight_decay= weight_decay_critic
+        )
+        scheduler_critic = torch.optim.lr_scheduler.LinearLR(critic_optim, start_factor= 1.0, end_factor= 0.1, total_iters= total_timesteps)
         
-        # assign to the env.
-        env.band_ser_cat = real_action
-        # print(env.band_ser_cat)  # ex: [3442405.76028824 3145710.52789688 3411883.71181488]
-        
-        # 2000 slots in 1 learning window
-        for _ in range(learning_windows):
-            env.scheduling()  # do lower-level allocation every timeslots
-            env.provisioning()  # evaluate the SE & SSR of the current timeslot
-            env.activity()  # assign readtime & generate packet according to the readtime
+
+        # generate the ReplayBuffer
+        if prioritized_replay: 
+            buffer = PrioritizedReplayBuffer(
+                size= buffer_size,
+                # used to control the strength of the prioritization (alpha = 0 : uniform, alpha = 1 : complete prioritized)
+                alpha= prior_alpha,
+                # used to control the strength of revision of the sampling bias
+                beta= prior_beta
+            )
+        else: buffer = ReplayBuffer(size= buffer_size)
+
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # generate an instance of D2AC_OPT to handle the update of the model
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        fake_action_space = Discrete(3)
+        fake_action_space = Box(low= -1, high= 1, shape= (3,))
+        d2ac_opt = D2AC_OPT(
+            state_dim= state_dim,
+            action_dim= action_dim,
+            actor= actor,
+            actor_optim= actor_optim,
+            critic= critic,
+            critic_optim= critic_optim,
+            device= device,
+            n_steps= 3,  
+            with_rec_loss= False,
+            recon_param= 0.5,
+            lr_decay= False,
+            max_action= initial_max_action,
+            tau= tau,
+            # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
+            action_space= fake_action_space
+        )
+
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # generate the env
+        # ser_cat = ['volte', 'embb_general', 'urllc']
+        if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+        else: total_band = 10 * 10**6
+        # J = \alpha * SE + \betas * SSRs
+        qoe_weights = [1, 1, 1]  # \betas
+        se_weight = 0.01  # \alpha (原論文設定為 0.01)
+        learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
+        prefill_steps = 3 * batch_size
+        if hard_scenario: dl_mimo = 3  # 原本是 64
+        else: dl_mimo = 16
+        UE_no = 100 if fixed_UE else 300
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
+        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+        env.countReset()  # reset 所有計數器
+        if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
+        env.activity()  # 所有 UE 開始根據其網路切片產生封包
+        # observation_packets : total packets of each NSs, np.array with shape (3)
+        # observation_bits : total bits of each NSs, np.array with shape (3)
+        observation_packets, observation_bits = env.get_state()  
+
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # recording lists
+        QoEs = []
+        SEs = []
+        Utilities = []
+        Rewards = []
+        Observations = []
+        Actor_losses = []
+        Critic_losses = []
+
+
+        '''Training Procedure'''
+        slack = 0.0
+
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # Stage1 : Prefill 
+        # print("=================================Prefilliing=================================")
+        # for ps in range(prefill_steps):
+        #     print(f"\nPrefill step : {ps}")
+        #     state = state_preprocessing(state= observation_bits)
+        #     action_logit, scaled_random_logit, real_action = get_random_actions(
+        #         total_band= total_band,
+        #         max_action= initial_max_action,
+        #         logit_low= logit_low,
+        #         logit_high= logit_high,
+        #         action_dim= action_dim,
+        #         scale= scale,
+        #         action_scale_factor= action_scale_factor
+        #     )
+        #     print(f"action logit = {action_logit}, scaled action logit = {scaled_random_logit}, proportion = {real_action / 10000000}")
+        #     env.band_ser_cat = real_action
+        #     # 2000 slots in 1 learning window
+        #     for i in range(learning_windows):
+        #         env.scheduling()  # do lower-level allocation every timeslots
+        #         env.provisioning()  # evaluate the SE & SSR of the current timeslot
+        #         env.activity()  # assign readtime & generate packet according to the readtime
+
+        #     dropped_packets = env.eval_get_obs3()  # np.array with shape (3) (volte / embb/ urllc)
+            
+        #     # qoe : np.array with shape (3)
+        #     # se : np.array with shape (1)
+        #     qoe, se = env.get_reward()
+        #     # utility, reward : np.array with shape (1)
+        #     utility, reward, qoe_slack, _ = cal_reward(
+        #         qoe= qoe,
+        #         se= se,
+        #         qoe_weights= qoe_weights,
+        #         se_weight= se_weight,
+        #         SLA_threshold= SLA_threshold,
+        #         reward_clipping= False
+        #     )
+        #     # Record the values of the current learning window
+        #     QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
+        #     SEs.append(se.tolist()[0])  # se.tolist() -> [se]
+        #     Rewards.append(reward.item())  
+        #     Utilities.append(utility.item())
+            
+        #     next_observation_packets, next_observation_bits = env.get_state()
+        #     obs_next = state_preprocessing(next_observation_bits)
+
+        #     data = Batch(
+        #         obs= state,
+        #         act= action_logit,
+        #         rew= reward.squeeze(),
+        #         terminated= False,
+        #         truncated= False,
+        #         obs_next= obs_next
+        #     )
+        #     buffer.add(data)
+            
+        #     # print the outcome of the current learning window
+        #     print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}")
+            
+        #     writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= ps)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+        #     writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= ps)
+        #     writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= ps)
+        #     writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0], global_step= ps)  # 分配比例
+        #     writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1], global_step= ps)
+        #     writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2], global_step= ps)
+        #     writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= ps)
+        #     writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= ps)
+        #     writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= ps)
+        #     writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= ps)
+        #     writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= ps)
+        #     writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= ps)
+        #     writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= ps)
+        #     writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= ps)
+        #     writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= ps)
+        #     writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= ps)
+        #     writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= ps)
+        #     writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= ps)
+        #     writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= ps)
+        #     writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= ps)
+        #     writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= ps)
+        #     writer.add_scalar(tag= 'max_action', scalar_value= initial_max_action, global_step= ps)
+        #     writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= ps)
+        #     writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= ps)
+        #     writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= ps)
+
+            
+        #     observation_packets, observation_bits = next_observation_packets, next_observation_bits
+            
+        #     # reset all counters after each learning window
+        #     env.countReset()
+
+        #     # if using the env of LSTM-A2C then move the users
+        #     if not fixed_UE: env.user_move()
+
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        # Stage2 : Training
+        current_success = 0
+        qoe_slack = 0
+        current_max_action = initial_max_action
+        # for frame in tqdm(range(prefill_steps, total_timesteps)):
+        for frame in tqdm(range(0, total_timesteps)):
+            print(f"\n\n******Episode {frame} :")
+
+            # Curicculum Learning : Adjust max_action dynamically
+            # calculate the current max_action
+            current_max_action = get_dynamic_max_action(
+                step= frame, 
+                total_steps= total_timesteps, 
+                qoe_slack= qoe_slack, 
+                current_success= current_success, 
+                current_max_action= current_max_action
+            )
+            # modify max action in created instances
+            # # 1. diffusion.py 中有 max_action 屬性
+            # actor.max_action = current_max_action
+            # # d2ac_opt.py 中有建立 target_actor，那也有 max_action
+            # d2ac_opt.target_actor.max_action = current_max_action
+            # # 2. D2AC_opt.py 中有 max_action 屬性
+            # d2ac_opt.max_action = current_max_action
+
+            # state is the loading (no. of packets) of each NS of the previous learning window
+            state = state_preprocessing(state= observation_bits)  
+            # print(f"observation_packets = {observation_packets}, observation_bits = {observation_bits}")
+            # print(f"state = {state}")  # 介於 [1, 2]
+
+            # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
+            # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
+            origianl_logit, action_logit, scaled_action_logit, real_action = get_actions(
+                state= state, 
+                state_dim= state_dim,
+                total_band= total_band, 
+                model= actor, 
+                device= device, 
+                max_action= current_max_action,
+                exploration_rate_decay= exploration_rate_decay,
+                step= frame,
+                start_step= start_step,
+                end_step= end_step,
+                start_rate= start_exploration_rate,
+                end_rate= end_exploration_rate,
+                slack_based_explore= slack_based_explore,
+                slack= slack,
+                scale= scale,
+                action_scale_factor= action_scale_factor
+            )
+            print(f"original_logits = {origianl_logit}, action_logits = {action_logit}")
+            print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
+            # print(f"action_logit = {action_logit}, real action = {real_action}")
+            # print(f"action = {real_action}")
+            
+            # assign to the env.
+            env.band_ser_cat = real_action
+            # print(env.band_ser_cat)  # ex: [3442405.76028824 3145710.52789688 3411883.71181488]
+            
+            # 2000 slots in 1 learning window
+            for _ in range(learning_windows):
+                env.scheduling()  # do lower-level allocation every timeslots
+                env.provisioning()  # evaluate the SE & SSR of the current timeslot
+                env.activity()  # assign readtime & generate packet according to the readtime
+                
+
+            # calculate the reward of the current learning window
+            # qoe : np.array with shape (3)
+            # se : np.array with shape (1)
+            qoe, se = env.get_reward()
             
 
-        # calculate the reward of the current learning window
-        # qoe : np.array with shape (3)
-        # se : np.array with shape (1)
-        qoe, se = env.get_reward()
-        
+            # calculate the individual se of each network slices of the current learning window
+            # indivifual_se : np.array with shape (3)
+            # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
+            individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
+            # 一個 window 中各切片有幾個 slot 是完全沒有 active user (在 BS 內且有封包要傳) 
+            volte_UE_slot, embb_UE_slot, urllc_UE_slot, urllc_violate_packet_size = env.eval_get_obs2()
+            # 看一個 window 中各切片有多少 packets 被 dropped 掉
+            dropped_packets = env.eval_get_obs3()  # np.array with shape (3) (volte / embb/ urllc)
 
-        # calculate the individual se of each network slices of the current learning window
-        # indivifual_se : np.array with shape (3)
-        # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
-        individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
-        # 一個 window 中各切片有幾個 slot 是完全沒有 active user (在 BS 內且有封包要傳) 
-        volte_UE_slot, embb_UE_slot, urllc_UE_slot, urllc_violate_packet_size = env.eval_get_obs2()
-        # 看一個 window 中各切片有多少 packets 被 dropped 掉
-        dropped_packets = env.eval_get_obs3()  # np.array with shape (3) (volte / embb/ urllc)
+            # use qoe & se to calculate utility as a reward
+            # utility = \alpha * SE + (\betas * SSRs).sum()
+            # utility, reward : np.array with shape (1)
+            utility, reward, qoe_slack, se_part = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
 
-        # use qoe & se to calculate utility as a reward
-        # utility = \alpha * SE + (\betas * SSRs).sum()
-        # utility, reward : np.array with shape (1)
-        utility, reward, qoe_slack, se_part = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
+            # use qoe & SLA_threshold to calculate slack
+            slack = cal_slack(qoe= qoe, SLA_threshold= SLA_threshold)
 
-        # use qoe & SLA_threshold to calculate slack
-        slack = cal_slack(qoe= qoe, SLA_threshold= SLA_threshold)
+            # Record the values of the current learning window
+            QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
+            SEs.append(se.tolist()[0])  # se.tolist() -> [se]
+            Rewards.append(reward.item())  
+            Utilities.append(utility.item())
 
-        # Record the values of the current learning window
-        QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
-        SEs.append(se.tolist()[0])  # se.tolist() -> [se]
-        Rewards.append(reward.item())  
-        Utilities.append(utility.item())
+            # store the experience to the ReplayBuffer
+            data = Batch(
+                obs= state,  # np.array with shape (3)
+                act = action_logit,  # np.array with shape (3)
+                rew = reward.squeeze(),  # int
+                terminated= False,
+                truncated= False,
+                obs_next= state_preprocessing(env.get_state()[1])  # np.array with shape (3)
+            )
+            buffer.add(data)
+            
+            # update the model after warming up
+            if len(buffer) >= batch_size * 3:
+                loss, observe_values = d2ac_opt.update(sample_size= batch_size, buffer= buffer)
+                pprint(f"loss = {loss}")
+                # adjust learning rate
+                # scheduler_actor.step()
+                # scheduler_critic.step()
+                writer.add_scalar(tag= 'loss/actor_loss', scalar_value= loss['actor_loss'].item(), global_step= frame)
+                writer.add_scalar(tag= 'loss/policy_loss', scalar_value= loss['policy_loss'].item(), global_step= frame)
+                writer.add_scalar(tag= 'loss/recon_loss', scalar_value= loss['recon_loss'].item(), global_step= frame)
+                writer.add_scalar(tag= 'loss/critic_loss', scalar_value= loss['critic_loss'].item(), global_step= frame)
+                writer.add_scalar(tag= 'loss/action_penalty', scalar_value= loss['action_penalty'].item(), global_step= frame)
+                # writer.add_scalar(tag= 'unclampped_logits/absmin', scalar_value= observe_values['unclampped_logits_absmin'], global_step= frame)
+                # writer.add_scalar(tag= 'unclampped_logits/max', scalar_value= observe_values['unclampped_logits_max'], global_step= frame)
+                # writer.add_scalar(tag= 'unclampped_logits/absmean', scalar_value= observe_values['unclampped_logits_absmean'], global_step= frame)
+                writer.add_scalar(tag= 'unclampped_logits_legal_rate', scalar_value= observe_values['unclampped_logits_legal_rates'], global_step= frame)
+                writer.add_scalar(tag= 'grad/grad_norm_policy', scalar_value= loss['grad_norm_policy'], global_step= frame)
+                writer.add_scalar(tag= 'grad/grad_norm_rec', scalar_value= loss['grad_norm_rec'], global_step= frame)
+                writer.add_scalar(tag= 'grad/grad_norm_ap', scalar_value= loss['grad_norm_ap'], global_step= frame)
+                writer.add_scalar(tag= 'grad/grad_cov_policy', scalar_value= loss['grad_cov_policy'], global_step= frame)
+                writer.add_scalar(tag= 'grad/grad_cov_rec', scalar_value= loss['grad_cov_rec'], global_step= frame)
+                writer.add_scalar(tag= 'grad/grad_cov_ap', scalar_value= loss['grad_cov_ap'], global_step= frame)
 
-        # store the experience to the ReplayBuffer
-        data = Batch(
-            obs= state,  # np.array with shape (3)
-            act = action_logit,  # np.array with shape (3)
-            rew = reward.squeeze(),  # int
-            terminated= False,
-            truncated= False,
-            obs_next= state_preprocessing(env.get_state()[1])  # np.array with shape (3)
-        )
-        buffer.add(data)
-        
-        # update the model after warming up
-        if len(buffer) >= batch_size * 3:
-            loss, observe_values = d2ac_opt.update(sample_size= batch_size, buffer= buffer)
-            pprint(f"loss = {loss}")
-            # adjust learning rate
-            # scheduler_actor.step()
-            # scheduler_critic.step()
-            writer.add_scalar(tag= 'loss/actor_loss', scalar_value= loss['actor_loss'].item(), global_step= frame)
-            writer.add_scalar(tag= 'loss/policy_loss', scalar_value= loss['policy_loss'].item(), global_step= frame)
-            writer.add_scalar(tag= 'loss/recon_loss', scalar_value= loss['recon_loss'].item(), global_step= frame)
-            writer.add_scalar(tag= 'loss/critic_loss', scalar_value= loss['critic_loss'].item(), global_step= frame)
-            # writer.add_scalar(tag= 'unclampped_logits/absmin', scalar_value= observe_values['unclampped_logits_absmin'], global_step= frame)
-            # writer.add_scalar(tag= 'unclampped_logits/max', scalar_value= observe_values['unclampped_logits_max'], global_step= frame)
-            # writer.add_scalar(tag= 'unclampped_logits/absmean', scalar_value= observe_values['unclampped_logits_absmean'], global_step= frame)
-            writer.add_scalar(tag= 'unclampped_logits_legal_rate', scalar_value= observe_values['unclampped_logits_legal_rates'], global_step= frame)
-            writer.add_scalar(tag= 'grad/grad_norm_policy', scalar_value= loss['grad_norm_policy'], global_step= frame)
-            writer.add_scalar(tag= 'grad/grad_norm_rec', scalar_value= loss['grad_norm_rec'], global_step= frame)
-            writer.add_scalar(tag= 'grad/grad_cov_policy', scalar_value= loss['grad_cov_policy'], global_step= frame)
-            writer.add_scalar(tag= 'grad/grad_cov_rec', scalar_value= loss['grad_cov_rec'], global_step= frame)
+            # Actor_losses.append(loss['actor_loss'].item())
+            # Critic_losses.append(loss['critic_loss'].item())
 
-        # Actor_losses.append(loss['actor_loss'].item())
-        # Critic_losses.append(loss['critic_loss'].item())
+            # print the outcome of the current learning window
+            print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}")
+            writer.add_scalar(tag= 'idle_frame/urllc', scalar_value= urllc_UE_slot, global_step= frame)
+            writer.add_scalar(tag= 'idle_frame/volte', scalar_value= volte_UE_slot, global_step= frame)
+            writer.add_scalar(tag= 'idle_frame/embb', scalar_value= embb_UE_slot, global_step= frame)
+            writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
+            writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+            writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/fail_6.4KB', scalar_value= urllc_violate_packet_size[0], global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/fail_12.8KB', scalar_value= urllc_violate_packet_size[1], global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/fail_19.2KB', scalar_value= urllc_violate_packet_size[2], global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/fail_25.6KB', scalar_value= urllc_violate_packet_size[3], global_step= frame)
+            writer.add_scalar(tag= 'urllc_packets/fail_32KB', scalar_value= urllc_violate_packet_size[4], global_step= frame)
+            writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0], global_step= frame)  # 分配比例
+            writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1], global_step= frame)
+            writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
+            writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
+            writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
+            writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
+            writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
+            writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
+            writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= frame)
+            writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'max_action', scalar_value= current_max_action, global_step= frame)
+            writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= frame)
+            writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= frame)
+            writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= frame)
+            
+            # gain next state (loading of each NS in the previous learning window)
+            observation_packets, observation_bits = env.get_state()
 
-        # print the outcome of the current learning window
-        print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}")
-        writer.add_scalar(tag= 'idle_frame/urllc', scalar_value= urllc_UE_slot, global_step= frame)
-        writer.add_scalar(tag= 'idle_frame/volte', scalar_value= volte_UE_slot, global_step= frame)
-        writer.add_scalar(tag= 'idle_frame/embb', scalar_value= embb_UE_slot, global_step= frame)
-        writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
-        writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-        writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
-        writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/fail_6.4KB', scalar_value= urllc_violate_packet_size[0], global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/fail_12.8KB', scalar_value= urllc_violate_packet_size[1], global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/fail_19.2KB', scalar_value= urllc_violate_packet_size[2], global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/fail_25.6KB', scalar_value= urllc_violate_packet_size[3], global_step= frame)
-        writer.add_scalar(tag= 'urllc_packets/fail_32KB', scalar_value= urllc_violate_packet_size[4], global_step= frame)
-        writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0], global_step= frame)  # 分配比例
-        writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1], global_step= frame)
-        writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2], global_step= frame)
-        writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
-        writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
-        writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
-        writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
-        writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
-        writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
-        writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
-        writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
-        writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
-        writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
-        writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
-        writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
-        writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
-        writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
-        writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
-        writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= frame)
-        writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= frame)
-        writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= frame)
-        writer.add_scalar(tag= 'max_action', scalar_value= current_max_action, global_step= frame)
-        writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= frame)
-        writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= frame)
-        writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= frame)
-        
-        # gain next state (loading of each NS in the previous learning window)
-        observation_packets, observation_bits = env.get_state()
+            # reset all counters after each learning window
+            env.countReset()
 
-        # reset all counters after each learning window
-        env.countReset()
+            # if using the env of LSTM-A2C then move the users
+            if not fixed_UE: env.user_move()
+            
 
-        # if using the env of LSTM-A2C then move the users
-        if not fixed_UE: env.user_move()
-        
+        metric_dict = {}
+        writer.add_hparams(hparam_dict= hparams_dict, metric_dict= metric_dict)
 
-    metric_dict = {}
-    writer.add_hparams(hparam_dict= hparams_dict, metric_dict= metric_dict)
+        print("Complete")
 
-    print("Complete")
-
-    # 存下訓練好的參數以供後續產圖
-    if fixed_UE:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
-    else:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
+        # 存下訓練好的參數以供後續產圖
+        if fixed_UE:
+            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
+            torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
+        else:
+            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
+            torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
 
 
-    #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-    '''Generate Outcome Figures'''
-    qoe_volte = [v for (v, e, u) in QoEs]
-    qoe_embb = [e for (v, e, u) in QoEs]
-    qoe_urllc = [u for (v, e, u) in QoEs]
+        #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
+        '''Generate Outcome Figures'''
+        qoe_volte = [v for (v, e, u) in QoEs]
+        qoe_embb = [e for (v, e, u) in QoEs]
+        qoe_urllc = [u for (v, e, u) in QoEs]
 
-    ma_qoe_volte = moving_average(qoe_volte, window_size = 200)
-    ma_qoe_embb = moving_average(qoe_embb, window_size = 200)
-    ma_qoe_urllc = moving_average(qoe_urllc, window_size = 200)
-    ma_SE = moving_average(SEs, window_size = 200)
-    ma_utility = moving_average(Utilities, window_size = 200)
+        ma_qoe_volte = moving_average(qoe_volte, window_size = 200)
+        ma_qoe_embb = moving_average(qoe_embb, window_size = 200)
+        ma_qoe_urllc = moving_average(qoe_urllc, window_size = 200)
+        ma_SE = moving_average(SEs, window_size = 200)
+        ma_utility = moving_average(Utilities, window_size = 200)
 
-    plt.figure(3)
-    plt.clf()
-    plt.title('QoE')
-    plt.xlabel('Episode')
-    plt.ylabel('SLA Satisfication Rate')
-    plt.plot(ma_qoe_volte)
-    plt.plot(ma_qoe_embb)
-    plt.plot(ma_qoe_urllc)
-    plt.legend(["VoLTE", "Video", "URLLC"])
-    plt.savefig(image_path / f"QoE.png")
+        plt.figure(3)
+        plt.clf()
+        plt.title('QoE')
+        plt.xlabel('Episode')
+        plt.ylabel('SLA Satisfication Rate')
+        plt.plot(ma_qoe_volte)
+        plt.plot(ma_qoe_embb)
+        plt.plot(ma_qoe_urllc)
+        plt.legend(["VoLTE", "Video", "URLLC"])
+        plt.savefig(image_path / f"QoE.png")
 
-    plt.figure(4)
-    plt.clf()
-    plt.title('SE')
-    plt.xlabel('Episode')
-    plt.ylabel('bits/Hz')
-    plt.plot(ma_SE)
-    plt.savefig(image_path / f"SE.png")
+        plt.figure(4)
+        plt.clf()
+        plt.title('SE')
+        plt.xlabel('Episode')
+        plt.ylabel('bits/Hz')
+        plt.plot(ma_SE)
+        plt.savefig(image_path / f"SE.png")
 
-    plt.figure(5)
-    plt.clf()
-    plt.title('Utility')
-    plt.xlabel("Episode")
-    plt.ylabel("utility")
-    plt.plot(ma_utility)
-    plt.savefig(image_path / f"Utility.png")
+        plt.figure(5)
+        plt.clf()
+        plt.title('Utility')
+        plt.xlabel("Episode")
+        plt.ylabel("utility")
+        plt.plot(ma_utility)
+        plt.savefig(image_path / f"Utility.png")
 
-    print("Graph Saved")
+        print("Graph Saved")
 
-    writer.close()
+        writer.close()

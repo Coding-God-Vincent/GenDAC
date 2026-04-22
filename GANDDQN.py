@@ -48,10 +48,10 @@ from pathlib import Path
 
 
 seeds = [124, 125, 126, 127, 128]
-exps_fixed = ['exp20', 'exp21', 'exp22', 'exp23', 'exp24']
-exps_moving = ['exp15', 'exp16', 'exp17', 'exp18', 'exp19']
+exps_fixed = ['exp25', 'exp26', 'exp27', 'exp28', 'exp29']
+exps_moving = ['exp20', 'exp21', 'exp22', 'exp23', 'exp24']
 fixed_or_not = [True, False]
-hard_scenario = True
+hard_scenario = False
 
 for fixed in fixed_or_not:
 
@@ -584,27 +584,27 @@ for fixed in fixed_or_not:
 
         #=============================================================================================================================================#
         # 進入神經網路前的狀態前處理，將 state 中的值做正規化，使整個 state 各元素的均值為 0、標準差為 1
-        # def state_update(state, ser_cat):  # state : 當前 Learning window 各網路切片要傳送的封包個數 [d0, d1, d2]
-        #     discrete_state = np.zeros(state.shape)
-        #     # 若 state 內皆為 0，則不用進行前處理，輸入的狀態為一個零矩陣
-        #     # **但這邊只有有任一元素不為 0 時都不應該回傳 0，故這邊應該改為 state.sum() == 0 (已修正)
-        #     # if state.all() == 0:  
-        #     #     return discrete_state
-        #     if state.sum() == 0: return discrete_state
-        #     # 若 state 內有任一不為 0，則需做正規化
-        #     for ser_name in ser_cat:  # 一次考慮一種網路切片
-        #         ser_index = ser_cat.index(ser_name)
-        #         discrete_state[ser_index] = state[ser_index]
-        #     discrete_state = (discrete_state - discrete_state.mean()) / discrete_state.std()  # 對整個 state 做 z-score 正規化
-        #     return discrete_state
+        def state_update(state, ser_cat= ['volte', 'embb_general', 'urllc']):  # state : 當前 Learning window 各網路切片要傳送的封包個數 [d0, d1, d2]
+            discrete_state = np.zeros(state.shape)
+            # 若 state 內皆為 0，則不用進行前處理，輸入的狀態為一個零矩陣
+            # **但這邊只有有任一元素不為 0 時都不應該回傳 0，故這邊應該改為 state.sum() == 0 (已修正)
+            # if state.all() == 0:  
+            #     return discrete_state
+            if state.sum() == 0: return discrete_state
+            # 若 state 內有任一不為 0，則需做正規化
+            for ser_name in ser_cat:  # 一次考慮一種網路切片
+                ser_index = ser_cat.index(ser_name)
+                discrete_state[ser_index] = state[ser_index]
+            discrete_state = (discrete_state - discrete_state.mean()) / discrete_state.std()  # 對整個 state 做 z-score 正規化
+            return discrete_state
 
         # 改用 log-scaling，這應該是最適合這種跨度大的前處理方式
         # state : np.array, shape (state_dim)
         # ser_cat : list, len = 3
         # return preprocessed state : np.array, shape (state_dim)
-        def state_update(state):
-            log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
-            return log_state / 10.0  # 壓到 [0~10] 之間
+        # def state_update(state):
+        #     log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+        #     return log_state / 10.0  # 壓到 [0~10] 之間
 
         #=============================================================================================================================================#
         # Reward function，有做 reward clipping
@@ -726,11 +726,13 @@ for fixed in fixed_or_not:
         total_timesteps = 10000
         # parameters of celluar environment
         ser_cat_vec = ['volte', 'embb_general', 'urllc']
-        band_whole_no = 20 * 10**6  # 10MHz
+        if hard_scenario: band_whole_no = 20 * 10**6  
+        else: band_whole_no = 10 * 10**6  # 10MHz
         band_per = 1 * 10**6  # bandwidth allocation resolution : 1MHz
         qoe_weight = [1, 1, 1]
         se_weight = 0.01
-        dl_mimo = 3  # MIMO 天線數
+        if hard_scenario: dl_mimo = 3  # MIMO 天線數
+        else: dl_mimo = 16
         learning_windows = 2000  # 一個 episode
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat_vec, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
@@ -750,7 +752,7 @@ for fixed in fixed_or_not:
         model = WGAN_GP_Agent(static_policy = False, num_input = 3, num_actions = num_actions)
         G_noise = (torch.rand(1, model.num_samples)).to(device)
         observation_packets, observation_bits = env.get_state()
-        observation = state_update(observation_bits)  # 進行狀態前處理
+        observation = state_update(observation_packets)  # 進行狀態前處理
         # print(f"obeservation shape : {observation.shape}")
 
         log = {}
@@ -831,7 +833,7 @@ for fixed in fixed_or_not:
             # 準備做下一次的上層，取出 state
             # 該 state 為上一個 learning window 中，各網路切片欲傳輸的封包總數
             observation_packets, observation_bits = env.get_state()
-            observation = state_update(observation_bits)
+            observation = state_update(observation_packets)
             
             # 將 experience 存入 replay buffer
             model.append_to_replay(prev_observation, action, reward[0], observation)

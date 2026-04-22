@@ -11,14 +11,15 @@ from Env.env_movingUE import EnvMove
 from Utils.PPO_utils import RolloutBuffer, PPOopt, Model
 from Utils.seed import set_seed
 from pprint import pprint
+import math
 
 
-# exps_fixed = ['exp21', 'exp22', 'exp23', 'exp24', 'exp25']
-exps_moving = ['exp23']
-seeds = [125]
-fixed_or_not = [False]
+exps_fixed = ['exp26', 'exp27', 'exp28', 'exp29', 'exp30']
+exps_moving = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
+seeds = [124, 125, 126, 127, 128]
+fixed_or_not = [True, False]
 
-hard_scenario = True
+hard_scenario = False
 
 for fixed in fixed_or_not:
 
@@ -164,15 +165,34 @@ for fixed in fixed_or_not:
         # 自創 reward function2 -> 就分兩種情況就好，一種是已經滿足所有 SSR，另一種是滿足所有 SSR 了。
         # reward : shape (1), utility.shape (1)
         # se : np.int with shape (1), qoe : np.array with shape (3)
-        def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-            SLA_threshold = 0.95
-            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
-            if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
-                reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
-            else:
-                reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
-            reward = np.array([reward])
+        # def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+        #     SLA_threshold = 0.95
+        #     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+        #     if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
+        #         reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
+        #     else:
+        #         reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
+        #     reward = np.array([reward])
 
+        #     return utility, reward
+
+
+        # reward function3 : exponential gate
+        def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
+            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]
+            # About Qoe
+            qoe_score = np.matmul(qoe_weights, qoe.reshape((3, 1)))[0] / 10.0  # int
+            qoe_slack = max(0, SLA_threshold - qoe[0]) + max(0, SLA_threshold - qoe[1]) + max(0, SLA_threshold - qoe[2])
+            # qoe_penalty = qoe_slack * 2.0
+            qoe_penalty = 0.0
+            # About SE
+            se_base_score = (se_weight * se[0]) / 10.0
+            decay = 10
+            se_discount = math.exp(-decay * qoe_slack)  # 依照違反程度來決定來指數衰減所得 SE 的好處 (違反越多，衰減越大)
+            # final reward 
+            reward = qoe_score - qoe_penalty + (se_base_score * se_discount)
+            reward = np.array([reward])
+            
             return utility, reward
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -184,9 +204,10 @@ for fixed in fixed_or_not:
         ser_cat = ['volte', 'embb_general', 'urllc']
         qoe_weights = [1, 1, 1]
         se_weight = 0.01
-        total_band = 20 * 10**6  # unit : MHz
+        if hard_scenario : total_band = 20 * 10**6  # unit : MHz
+        else: total_band = 10 * 10**6
         total_timesteps = 10000
-        if hard_scenario : dl_mimo = 6  # 3
+        if hard_scenario : dl_mimo = 3  # 3
         else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
@@ -203,8 +224,8 @@ for fixed in fixed_or_not:
         clip_epsilon = 0.2  # PPO 修正項的上下限所用到的 epsilon
         entropy_coef = 0.0001  # 鼓勵探索的比重
         lr = 1e-3  
-        ACTION_SCALE = 5  # 因為 PPO 的輸出會經過一個 tanh，為了讓 PPO 做出較極端的策略，故乘上一個 5 之後再進入 Softmax
-        REWARD_SCALE = 5.0
+        ACTION_SCALE = 3.0  # 因為 PPO 的輸出會經過一個 tanh，為了讓 PPO 做出較極端的策略，故乘上一個 5 之後再進入 Softmax
+        # REWARD_SCALE = 5.0
         state_dim = len(ser_cat)
         action_dim = len(ser_cat)
 
@@ -252,7 +273,7 @@ for fixed in fixed_or_not:
             print(f"\n\n******Episode {frame} :")
 
             # 動態調整 ACTION_SCALE
-            ACTION_SCALE = min(6.0, 2.0 + (frame / 5000.0) * 4.0)
+            # ACTION_SCALE = min(1.0, 1.0 + (frame / 5000.0) * 2.0)
 
             # action_tanh : torch.tensor with shape (action_dim), no grad
             # log_prob : float
@@ -285,7 +306,7 @@ for fixed in fixed_or_not:
                 state= state,
                 action= action_tanh,
                 log_prob= log_prob,
-                reward= reward[0] / REWARD_SCALE,
+                reward= reward[0],
                 done= False,
                 value= value
             )

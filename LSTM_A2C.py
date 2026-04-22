@@ -19,8 +19,8 @@ import torch
 '''
 
 seeds = [124, 125, 126, 127, 128]
-exps_fixed = ['exp17', 'exp18', 'exp19', 'exp20', 'exp21']
-exps_moving = ['exp17', 'exp18', 'exp19', 'exp20', 'exp21']
+exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
+exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
 fixed_or_not = [True, False]
 hard_scenario = True
 
@@ -194,17 +194,26 @@ for fixed in fixed_or_not:
         # state : np.array, shape (state_dim)
         # ser_cat : list, len = 3
         # return preprocessed state : np.array, shape (state_dim)
-        def state_preprocessing(state):
-            log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
-            return log_state / 10.0  # 壓到 [0~10] 之間
+        # def state_preprocessing(state):
+        #     log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+        #     return log_state / 10.0  # 壓到 [0~10] 之間
+        
+        # 原始 state preprocessing
+        def state_preprocessing(pkt_nums):
+            mean = np.array([218.8, 5338, 293])
+            std = np.array([51, 847, 42.5])
+            state = (pkt_nums - mean) / std
+            return state
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
-        total_band = 20  # unit : MHz
+        if hard_scenario: total_band = 20  # unit : MHz
+        else: total_band = 10
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
-        dl_mimo = 3
+        if hard_scenario: dl_mimo = 3
+        else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300  # 原本 LSTM-A2C 那邊設 1200 應該是真的沒有 buffer reset，因為 1200 的話要跑超久。這邊為了加速我把人數訂為跟 GANDDQN 那邊一樣 100 人
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
@@ -255,7 +264,7 @@ for fixed in fixed_or_not:
                 env.activity()
             
             observation_packets, observation_bits = env.get_state()
-            observe = state_preprocessing(observation_bits)
+            observe = state_preprocessing(observation_packets)
             # print(observation_packets, observe)
             lstm_buffer.append(observe)
 
@@ -275,7 +284,7 @@ for fixed in fixed_or_not:
                 env.activity()
 
             observation_packets, observation_bits = env.get_state()
-            observe = state_preprocessing(observation_bits)
+            observe = state_preprocessing(observation_packets)
             lstm_buffer.pop(0)
             lstm_buffer.append(observe)
             next_state = np.vstack(lstm_buffer)  # lstm_buffer : np.array with shape (sequence_length, n_state)
