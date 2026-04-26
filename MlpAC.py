@@ -5,12 +5,13 @@ from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from Env.env_fixedUE import cellularEnv
 from Env.env_movingUE import EnvMove
-from tianshou.data import Batch, ReplayBuffer
+from tianshou.data import Batch, ReplayBuffer, to_torch
 from gymnasium.spaces import Discrete, Box  # In order to use BasePolicy
 from pathlib import Path
 from pprint import pprint
 from Utils.seed import set_seed
 import math
+from Utils.Diffusion_utils.helpers import GaussianNoise
 
 # 匯入 MLP ablation 模組 (請確保此路徑與你的資料夾結構相符)
 from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
@@ -72,12 +73,17 @@ for fixed in fixed_or_not:
         # state : np.array with shape (state_dim)
         # return : 
         # action_logits, real_action : np.array with shape (action_dim)
-        def get_actions(state, total_band, model, device):
+        noise_generator = GaussianNoise()
+        def get_actions(state, total_band, model, device, action_scale, exploration_rate, sigma):
             # shape (1, state_dim)
             state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)
             with torch.no_grad():
                 # shape (1, action_dim)
                 action_logit, _ = model(state= state, deterministic= False) 
+            if np.random.rand() < exploration_rate:
+                noise = to_torch(noise_generator.generate(action_logit.shape, sigma= sigma), dtype= torch.float32, device= device)
+                action_logit = action_logit + noise
+            scaled_action_logit = action_logit * action_scale
             # shape (action_dim)
             proportion = torch.nn.functional.softmax(action_logit, dim= 1).cpu().numpy().squeeze()
             real_action = total_band * proportion
@@ -199,6 +205,9 @@ for fixed in fixed_or_not:
         if hard_scenario: dl_mimo = 3 
         else: dl_mimo = 16
         UE_no = 100 if fixed_UE else 300
+        action_scale = 3.0
+        exploration_rate = 0.1
+        sigma = 0.1
 
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = True)
         else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = True)
@@ -219,7 +228,7 @@ for fixed in fixed_or_not:
             print(f"\n\n******Episode {frame} :")
             state = state_preprocessing(state= observation_bits)  
 
-            action_logit, real_action = get_actions(state= state, total_band= total_band, model= actor, device= device)
+            action_logit, real_action = get_actions(state= state, total_band= total_band, model= actor, device= device, action_scale= action_scale)
             
             env.band_ser_cat = real_action
             

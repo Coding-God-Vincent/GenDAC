@@ -41,7 +41,7 @@ class MlpAC_opt(BasePolicy):
         self.tau = tau
         self.n_step = n_step
         self.lr_decay = lr_decay
-        self.with_entropy = False
+        self.with_entropy = with_entropy
         
         # Auto-Tuning Alpha (2018 SAC) : proportion of the entropy
         # alpha must be positive so we use log-exp trick here as well
@@ -149,7 +149,7 @@ class MlpAC_opt(BasePolicy):
         action = to_torch(batch.act, dtype= torch.float32, device= self.device)
         # shape (batch_size, 1)
         td_target = to_torch(batch.returns, dtype= torch.float32, device= self.device).view(-1, 1)
-        alpha = self.log_alpha.exp()
+        
         
         '''update critic'''
         current_q1, current_q2 = self.critic(state= state, action= action)
@@ -162,6 +162,7 @@ class MlpAC_opt(BasePolicy):
         current_action, current_log_prob = self.actor(state= state)
         currentQ = self.critic.q_min(state= state, action= current_action)
         if self.with_entropy:
+            alpha = self.log_alpha.exp()
             actor_loss = (alpha.detach() * current_log_prob - currentQ).mean()
         else:
             actor_loss = -currentQ.mean()
