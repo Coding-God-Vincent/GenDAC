@@ -14,17 +14,20 @@ from pprint import pprint
 import math
 
 
-exps_fixed = ['exp26', 'exp27', 'exp28', 'exp29', 'exp30']
-exps_moving = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
-seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [True, False]
+# exps_fixed = ['exp26', 'exp27', 'exp28', 'exp29', 'exp30']
+# exps_moving = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
+# seeds = [124, 125, 126, 127, 128]
+# fixed_or_not = [True, False]
+fixed_or_not = [False]
+exps = ['exp29']
+seeds = [124]
 
 hard_scenario = False
 
 for fixed in fixed_or_not:
 
-    if fixed: exps = exps_fixed
-    else: exps = exps_moving
+    # if fixed: exps = exps_fixed
+    # else: exps = exps_moving
     
     for i in range(len(seeds)):
         print(f"It's {exps[i]}, seeds {seeds[i]}")
@@ -322,8 +325,8 @@ for fixed in fixed_or_not:
                     'entropy_loss' : entropy_loss
                 }
                 # adjust learning rate
-                scheduler_actor.step()
-                scheduler_critic.step()
+                # scheduler_actor.step()
+                # scheduler_critic.step()
                 # 更新完畢後清空 buffer
                 Buffer.clear()
                 pprint(loss)

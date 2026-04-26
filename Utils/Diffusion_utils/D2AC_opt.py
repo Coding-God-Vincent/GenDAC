@@ -34,6 +34,7 @@ class D2AC_OPT(BasePolicy):
         with_rec_loss : bool = True,
         recon_param : int = 1,
         max_action : int = 1,
+        safe_margin : float = 1.0,
         **kwargs : any
     ):
         super().__init__(**kwargs)
@@ -56,6 +57,7 @@ class D2AC_OPT(BasePolicy):
         self.with_rec_loss = with_rec_loss
         self.recon_param = recon_param
         self.max_action = max_action
+        self.safe_margin = safe_margin
         
         # if we want to decay the lr, use CosineAnnealingLR
         if lr_decay:
@@ -207,9 +209,8 @@ class D2AC_OPT(BasePolicy):
         action = self.forward(batch= batch, state= 'obs', model= 'actor').act  # shape (batch_size, action_dim)
         action = to_torch(action, dtype= torch.float32, device= self.device)
         # 為避免 bang-bang control 問題，加上 margin action penalty
-        safe_margin = 0.8
         raw_logit = action.clone()
-        out_of_bound_logit = torch.clamp(torch.abs(raw_logit) - safe_margin, min= 0.0)
+        out_of_bound_logit = torch.clamp(torch.abs(raw_logit) - self.safe_margin, min= 0.0)
         penalty_weight = 10.0
         action_penalty = (out_of_bound_logit ** 2).sum(dim= -1).mean()
         action_penalty = action_penalty * penalty_weight

@@ -10,16 +10,18 @@ from gymnasium.spaces import Discrete, Box  # In order to use BasePolicy
 from pathlib import Path
 from pprint import pprint
 from Utils.seed import set_seed
+import math
 
 # 匯入 MLP ablation 模組 (請確保此路徑與你的資料夾結構相符)
 from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
-exps_fixed = ['exp12', 'exp13', 'exp14', 'exp15', 'exp16']
-exps_moving = ['exp12', 'exp13', 'exp14', 'exp15', 'exp16']
+exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
+exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
 seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [True, False]
-hard_scenario = True
+hard_scenario = False
+with_entropy = False
 
 for fixed in fixed_or_not:  
 
@@ -103,15 +105,34 @@ for fixed in fixed_or_not:
         # 自創 reward function2 -> 就分兩種情況就好，一種是已經滿足所有 SSR，另一種是滿足所有 SSR 了。
         # reward : shape (1), utility.shape (1)
         # se : np.int with shape (1), qoe : np.array with shape (3)
-        def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
-            SLA_threshold = 0.95
-            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
-            if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
-                reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
-            else:
-                reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
-            reward = np.array([reward])
+        # def cal_reward(qoe, se, qoe_weights, se_weight, reward_clipping= False):
+        #     SLA_threshold = 0.95
+        #     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+        #     if ((qoe[2] >= SLA_threshold) and (qoe[1] >= SLA_threshold) and (qoe[0] >= SLA_threshold)):
+        #         reward = (np.matmul(qoe_weights, qoe.reshape((3, 1))) + (se_weight / 1.0) * se[0])[0] / 10  # 會介於 0~1
+        #     else:
+        #         reward = - max(0, SLA_threshold - qoe[0]) - max(0, SLA_threshold - qoe[1]) - max(0, SLA_threshold - qoe[2])
+        #     reward = np.array([reward])
 
+        #     return utility, reward
+        
+        
+        # reward function3 : exponential gate
+        def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
+            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]
+            # About Qoe
+            qoe_score = np.matmul(qoe_weights, qoe.reshape((3, 1)))[0] / 10.0  # int
+            qoe_slack = max(0, SLA_threshold - qoe[0]) + max(0, SLA_threshold - qoe[1]) + max(0, SLA_threshold - qoe[2])
+            # qoe_penalty = qoe_slack * 2.0
+            qoe_penalty = 0.0
+            # About SE
+            se_base_score = (se_weight * se[0]) / 10.0
+            decay = 10
+            se_discount = math.exp(-decay * qoe_slack)  # 依照違反程度來決定來指數衰減所得 SE 的好處 (違反越多，衰減越大)
+            # final reward 
+            reward = qoe_score - qoe_penalty + (se_base_score * se_discount)
+            reward = np.array([reward])
+            
             return utility, reward
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -162,18 +183,21 @@ for fixed in fixed_or_not:
             state_dim= state_dim,
             action_dim= action_dim,
             alpha_lr= alpha_lr,
+            with_entropy= False,
             # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
             action_space= fake_action_space
         )
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # generate the env
-        total_band = 20 * 10**6  
+        if hard_scenario : total_band = 20 * 10**6  
+        else : total_band = 10 * 10**6
         qoe_weights = [1, 1, 1]  
         se_weight = 0.01  
         total_timesteps = 10000
         learning_windows = 2000  
-        dl_mimo = 3 
+        if hard_scenario: dl_mimo = 3 
+        else: dl_mimo = 16
         UE_no = 100 if fixed_UE else 300
 
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = True)
@@ -230,9 +254,9 @@ for fixed in fixed_or_not:
                 # 紀錄包含 Alpha 在內的所有 Loss
                 writer.add_scalar(tag= 'loss/actor_loss', scalar_value= loss['actor_loss'], global_step= frame)
                 writer.add_scalar(tag= 'loss/critic_loss', scalar_value= loss['critic_loss'], global_step= frame)
-                writer.add_scalar(tag= 'loss/alpha_loss', scalar_value= loss['alpha_loss'], global_step= frame)
+                if with_entropy: writer.add_scalar(tag= 'loss/alpha_loss', scalar_value= loss['alpha_loss'], global_step= frame)
                 writer.add_scalar(tag= 'loss/policy_entropy', scalar_value= loss['policy_entropy'], global_step= frame)
-                writer.add_scalar(tag= 'hyperparameter/alpha', scalar_value= loss['current_alpha'], global_step= frame)
+                if with_entropy: writer.add_scalar(tag= 'hyperparameter/alpha', scalar_value= loss['current_alpha'], global_step= frame)
 
             print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}")
             

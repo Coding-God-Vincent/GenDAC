@@ -22,7 +22,7 @@ seeds = [124, 125, 126, 127, 128]
 exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
 exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
 fixed_or_not = [True, False]
-hard_scenario = True
+hard_scenario = False
 
 for fixed in fixed_or_not:
 

@@ -21,6 +21,7 @@ class MlpAC_opt(BasePolicy):
         alpha_lr= 3e-4,
         n_step = 3,
         lr_decay= False,
+        with_entropy= False,
         lr_max_step= 1000,
         **kwargs : any
     ):
@@ -40,14 +41,16 @@ class MlpAC_opt(BasePolicy):
         self.tau = tau
         self.n_step = n_step
         self.lr_decay = lr_decay
+        self.with_entropy = False
         
         # Auto-Tuning Alpha (2018 SAC) : proportion of the entropy
         # alpha must be positive so we use log-exp trick here as well
         # target_entropy is set to -dim(action) ususally (experience)
-        self.target_entropy = -float(action_dim)
-        self.log_alpha = torch.zeros(1, requires_grad= True, device= device)
-        self.alpha_optim = torch.optim.Adam(params= [self.log_alpha], lr= alpha_lr)
-        self.alpha = self.log_alpha.exp().item()  # int
+        if with_entropy:
+            self.target_entropy = -float(action_dim)
+            self.log_alpha = torch.zeros(1, requires_grad= True, device= device)
+            self.alpha_optim = torch.optim.Adam(params= [self.log_alpha], lr= alpha_lr)
+            self.alpha = self.log_alpha.exp().item()  # int
         
         # if we want to decay the lr, use CosineAnnealingLR
         if lr_decay:
@@ -93,9 +96,13 @@ class MlpAC_opt(BasePolicy):
         next_state = to_torch(batch.obs_next, dtype= torch.float32, device= self.device)
         with torch.no_grad():
             next_action, next_log_prob = self.actor_target(state= next_state)
-            alpha = self.log_alpha.exp().detach()
             # shape (batch_size, 1)
-            target_Q = self.critic_target.q_min(state= next_state, action= next_action) - alpha * next_log_prob
+            if self.with_entropy:
+                alpha = self.log_alpha.exp().detach()
+                target_Q = self.critic_target.q_min(state= next_state, action= next_action) - alpha * next_log_prob
+            else:
+                target_Q = self.critic_target.q_min(state= next_state, action= next_action)
+
         return target_Q
     
     
@@ -154,28 +161,42 @@ class MlpAC_opt(BasePolicy):
         '''update actor'''
         current_action, current_log_prob = self.actor(state= state)
         currentQ = self.critic.q_min(state= state, action= current_action)
-        actor_loss = (alpha.detach() * current_log_prob - currentQ).mean()
+        if self.with_entropy:
+            actor_loss = (alpha.detach() * current_log_prob - currentQ).mean()
+        else:
+            actor_loss = -currentQ.mean()
+        
         self.actor_optim.zero_grad()
         actor_loss.backward()
         self.actor_optim.step()
         
         '''update alpha'''
-        alpha_loss = -(self.log_alpha * (current_log_prob + self.target_entropy).detach()).mean()
-        self.alpha_optim.zero_grad()
-        alpha_loss.backward()
-        self.alpha_optim.step()
-        self.alpha = self.log_alpha.exp().item()
+        if self.with_entropy:
+            alpha_loss = -(self.log_alpha * (current_log_prob + self.target_entropy).detach()).mean()
+            self.alpha_optim.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optim.step()
+            self.alpha = self.log_alpha.exp().item()
         
         '''soft update target networks'''
         self.update_target_networks()
         
-        return {
-            'actor_loss': actor_loss.item(),
-            'critic_loss': critic_loss.item(),
-            'alpha_loss': alpha_loss.item(),
-            'policy_entropy': -current_log_prob.mean().item(),
-            'current_alpha': self.alpha
-        }
+        if self.with_entropy:
+            items_return = {
+                'actor_loss': actor_loss.item(),
+                'critic_loss': critic_loss.item(),
+                'alpha_loss': alpha_loss.item(),
+                'policy_entropy': -current_log_prob.mean().item(),
+                'current_alpha': self.alpha
+            }
+        else:
+            items_return = {
+                'actor_loss': actor_loss.item(),
+                'critic_loss': critic_loss.item(),
+                'policy_entropy': -current_log_prob.mean().item(),
+            }
+
+        return items_return
         
         
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

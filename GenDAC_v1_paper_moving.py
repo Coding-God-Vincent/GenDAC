@@ -163,7 +163,7 @@ def get_actions(state,
             exploration_rate = get_exploration_rate(step= step, start_ep= start_step, end_ep= end_step, start_rate= start_rate, end_rate= end_rate)
         else: exploration_rate = start_rate
         if np.random.rand() < exploration_rate:   
-            noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.2), dtype= torch.float32, device= device)
+            noise = to_torch(noise_generator.generate(action_logit.shape, sigma= 0.1), dtype= torch.float32, device= device)
             action_logit = action_logit + noise
     
     original_logit = action_logit.clone()
@@ -232,25 +232,39 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = False
-exps_1 = ['exp145', 'exp146', 'exp147', 'exp148', 'exp149']
-exps_5 = ['exp150', 'exp151', 'exp152', 'exp153', 'exp154']
-exps_7 = ['exp155', 'exp156', 'exp157', 'exp158', 'exp159']
+# exps_1 = ['exp145', 'exp146', 'exp147', 'exp148', 'exp149']
+# exps_5 = ['exp150', 'exp151', 'exp152', 'exp153', 'exp154']
+# exps_7 = ['exp155', 'exp156', 'exp157', 'exp158', 'exp159']
+# seeds = [125, 126, 127, 128]
+# steps = [1, 5, 7]
+
+# steps = [3]
+# exps = ['exp161']
+# seeds = [124]
+
+# seeds_0 = [124, 125, 126, 127, 128]
+# seeds_others = [125, 126, 127, 128]
+
+# exps_05 = ['exp173', 'exp174', 'exp175', 'exp176']
+# exps_005 = ['exp177', 'exp178', 'exp179', 'exp180']
+# exps_0 = ['exp172', 'exp181', 'exp182', 'exp183', 'exp184']
+
+# seeds = [124]
+# exps = ['exp185']
+# steps = [0.05]
+# steps = [0.5, 0.05, 0.0]
 
 seeds = [124, 125, 126, 127, 128]
-steps = [1, 5, 7]
-# exps = ['exp141']
-# seeds = [124]
+exps = ['exp185', 'exp186', 'exp187', 'exp188', 'exp189']
+steps = [0.01]
+
 hard_scenario = False
 DDIM = False
 
 for ds in steps:
-    
-    if ds == 1: exps = exps_1
-    elif ds == 5: exps = exps_5
-    else: exps = exps_7
-    
-    for i in range(len(seeds)):
 
+    for i in range(len(seeds)):
+    
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         set_seed(seed= seeds[i])
         if fixed_UE: print("\n================================================== Fixed_UE env ==================================================\n")
@@ -295,7 +309,7 @@ for ds in steps:
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
         if fixed_UE: denoise_step = 3
-        else: denoise_step = ds
+        else: denoise_step = 3
         actor_lr = 3e-4
         critic_lr = 1e-3
         weight_decay_actor = 1e-4
@@ -313,6 +327,7 @@ for ds in steps:
         SLA_threshold = 0.95
         slack_based_explore = False
         tau = 0.005
+        safe_margin = 0.99
 
         # record training parameters in tensorboard
         note = '動態調整 max_action (1->4)'
@@ -386,11 +401,12 @@ for ds in steps:
             critic_optim= critic_optim,
             device= device,
             n_steps= 3,  
-            with_rec_loss= False,
-            recon_param= 0.5,
+            with_rec_loss= True,
+            recon_param= ds,
             lr_decay= False,
             max_action= initial_max_action,
             tau= tau,
+            safe_margin= safe_margin,
             # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
             action_space= fake_action_space
         )
