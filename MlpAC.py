@@ -83,9 +83,10 @@ for fixed in fixed_or_not:
             if np.random.rand() < exploration_rate:
                 noise = to_torch(noise_generator.generate(action_logit.shape, sigma= sigma), dtype= torch.float32, device= device)
                 action_logit = action_logit + noise
+                action_logit = torch.clamp(action_logit, min= -1.0, max= 1.0)
             scaled_action_logit = action_logit * action_scale
             # shape (action_dim)
-            proportion = torch.nn.functional.softmax(action_logit, dim= 1).cpu().numpy().squeeze()
+            proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
             real_action = total_band * proportion
             return action_logit.cpu().numpy().squeeze(), real_action
 
