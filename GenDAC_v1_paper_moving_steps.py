@@ -231,42 +231,43 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 '''system env setup'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
-fixed_UE = True
-# exps_1 = ['exp123', 'exp124', 'exp125', 'exp126', 'exp127']
-# exps_5 = ['exp128', 'exp129', 'exp130', 'exp131', 'exp132']
-# exps_7 = ['exp133', 'exp134', 'exp135', 'exp136', 'exp137']
+fixed_UE = False
+exps_1 = ['exp145', 'exp146', 'exp147', 'exp148', 'exp149']
+exps_5 = ['exp150', 'exp151', 'exp152', 'exp153', 'exp154']
+exps_7 = ['exp155', 'exp156', 'exp157', 'exp158', 'exp159']
 # seeds = [125, 126, 127, 128]
-# steps = [1, 5, 7]
+steps = [1, 5, 7]
 
-# seeds_0 = [125, 126, 127, 128]
-# seeds_others = [126, 127, 128]
+# steps = [3]
+# exps = ['exp161']
+# seeds = [124]
 
-# exps_05 = ['exp152', 'exp153', 'exp154']
-# exps_005 = ['exp156', 'exp157', 'exp158']
-# exps_0 = ['exp159', 'exp160', 'exp161', 'exp162']
+# seeds_0 = [124, 125, 126, 127, 128]
+# seeds_others = [125, 126, 127, 128]
+
+# exps_05 = ['exp173', 'exp174', 'exp175', 'exp176']
+# exps_005 = ['exp177', 'exp178', 'exp179', 'exp180']
+# exps_0 = ['exp172', 'exp181', 'exp182', 'exp183', 'exp184']
+
+# seeds = [124]
+# exps = ['exp185']
+# steps = [0.05]
 # steps = [0.5, 0.05, 0.0]
 
 seeds = [124, 125, 126, 127, 128]
-exps_0005 = ['exp168', 'exp169', 'exp170', 'exp171', 'exp172']
-exps_0001 = ['exp173', 'exp174', 'exp175', 'exp176', 'exp177']
-steps = [0.005, 0.001]
+# exps_0005 = ['exp190', 'exp191', 'exp192', 'exp193', 'exp194']
+# exps_0001 = ['exp195', 'exp196', 'exp197', 'exp198', 'exp199']
+# steps = [0.005, 0.001]
 
 hard_scenario = False
 DDIM = False
 
 for ds in steps:
-        
-    # if ds == 0.5: exps = exps_05
-    # elif ds == 0.0: exps = exps_0
-    # else: exps = exps_005
 
-    # if ds == 0.0: seeds = seeds_0
-    # else: seeds = seeds_others
+    if ds == 1: exps = exps_1
+    elif ds == 5: exps = exps_5
+    else: exps = exps_7
 
-    if ds == 0.005: exps = exps_0005
-    else: exps = exps_0001
-    
-    
     for i in range(len(seeds)):
     
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -313,7 +314,7 @@ for ds in steps:
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
         if fixed_UE: denoise_step = 3
-        else: denoise_step = 3
+        else: denoise_step = ds
         actor_lr = 3e-4
         critic_lr = 1e-3
         weight_decay_actor = 1e-4
@@ -407,7 +408,7 @@ for ds in steps:
             device= device,
             n_steps= 3,  
             with_rec_loss= True,
-            recon_param= ds,
+            recon_param= 0.01,
             lr_decay= False,
             max_action= initial_max_action,
             tau= tau,

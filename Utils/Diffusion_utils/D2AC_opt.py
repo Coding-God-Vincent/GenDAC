@@ -35,6 +35,7 @@ class D2AC_OPT(BasePolicy):
         recon_param : int = 1,
         max_action : int = 1,
         safe_margin : float = 1.0,
+        with_action_penalty : bool = False,
         **kwargs : any
     ):
         super().__init__(**kwargs)
@@ -58,6 +59,7 @@ class D2AC_OPT(BasePolicy):
         self.recon_param = recon_param
         self.max_action = max_action
         self.safe_margin = safe_margin
+        self.with_action_penalty = with_action_penalty
         
         # if we want to decay the lr, use CosineAnnealingLR
         if lr_decay:
@@ -228,8 +230,12 @@ class D2AC_OPT(BasePolicy):
         # torch.tensor with shape(), not shape (1)
         policy_loss = -self.critic.q_min(state= state, action= action).mean()  
         
-        if self.with_rec_loss: actor_loss = policy_loss + self.recon_param * recon_loss + action_penalty 
-        else: actor_loss = policy_loss + action_penalty
+        if self.with_rec_loss: 
+            if self.with_action_penalty: actor_loss = policy_loss + self.recon_param * recon_loss + action_penalty 
+            else: actor_loss = policy_loss + self.recon_param * recon_loss 
+        else: 
+            if self.with_action_penalty: actor_loss = policy_loss + action_penalty 
+            else: actor_loss = policy_loss 
 
         if update:
             self.actor_optim.zero_grad()

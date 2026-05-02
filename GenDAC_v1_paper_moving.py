@@ -254,14 +254,18 @@ fixed_UE = False
 # steps = [0.05]
 # steps = [0.5, 0.05, 0.0]
 
-seeds = [128]
-exps = ['exp184']
-steps = [0.0]
+seeds = [124, 125, 126, 127, 128]
+exps_0005 = ['exp190', 'exp191', 'exp192', 'exp193', 'exp194']
+exps_0001 = ['exp195', 'exp196', 'exp197', 'exp198', 'exp199']
+steps = [0.005, 0.001]
 
 hard_scenario = False
 DDIM = False
 
 for ds in steps:
+
+    if ds == 0.005: exps = exps_0005
+    else: exps = exps_0001
 
     for i in range(len(seeds)):
     
@@ -328,6 +332,7 @@ for ds in steps:
         slack_based_explore = False
         tau = 0.005
         safe_margin = 0.99
+        with_action_penalty = False
 
         # record training parameters in tensorboard
         note = '動態調整 max_action (1->4)'
@@ -407,6 +412,7 @@ for ds in steps:
             max_action= initial_max_action,
             tau= tau,
             safe_margin= safe_margin,
+            with_action_penalty= with_action_penalty,
             # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
             action_space= fake_action_space
         )

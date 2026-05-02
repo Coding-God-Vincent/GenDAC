@@ -232,9 +232,9 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = True
-# exps_1 = ['exp123', 'exp124', 'exp125', 'exp126', 'exp127']
-# exps_5 = ['exp128', 'exp129', 'exp130', 'exp131', 'exp132']
-# exps_7 = ['exp133', 'exp134', 'exp135', 'exp136', 'exp137']
+exps_1 = ['exp123', 'exp124', 'exp125', 'exp126', 'exp127']
+exps_5 = ['exp128', 'exp129', 'exp130', 'exp131', 'exp132']
+exps_7 = ['exp133', 'exp134', 'exp135', 'exp136', 'exp137']
 # seeds = [125, 126, 127, 128]
 # steps = [1, 5, 7]
 
@@ -247,24 +247,18 @@ fixed_UE = True
 # steps = [0.5, 0.05, 0.0]
 
 seeds = [124, 125, 126, 127, 128]
-exps_0005 = ['exp168', 'exp169', 'exp170', 'exp171', 'exp172']
-exps_0001 = ['exp173', 'exp174', 'exp175', 'exp176', 'exp177']
-steps = [0.005, 0.001]
+# exps_0005 = ['exp168', 'exp169', 'exp170', 'exp171', 'exp172']
+# exps_0001 = ['exp173', 'exp174', 'exp175', 'exp176', 'exp177']
+steps = [1, 5, 7]
 
 hard_scenario = False
 DDIM = False
 
 for ds in steps:
         
-    # if ds == 0.5: exps = exps_05
-    # elif ds == 0.0: exps = exps_0
-    # else: exps = exps_005
-
-    # if ds == 0.0: seeds = seeds_0
-    # else: seeds = seeds_others
-
-    if ds == 0.005: exps = exps_0005
-    else: exps = exps_0001
+    if ds == 1: exps = exps_1
+    elif ds == 5: exps = exps_5
+    else: exps = exps_7
     
     
     for i in range(len(seeds)):
@@ -312,7 +306,7 @@ for ds in steps:
         action_scale_factor = 3.0
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = 3
+        if fixed_UE: denoise_step = ds
         else: denoise_step = 3
         actor_lr = 3e-4
         critic_lr = 1e-3
@@ -407,7 +401,7 @@ for ds in steps:
             device= device,
             n_steps= 3,  
             with_rec_loss= True,
-            recon_param= ds,
+            recon_param= 0.01,
             lr_decay= False,
             max_action= initial_max_action,
             tau= tau,
