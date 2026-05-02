@@ -17,10 +17,10 @@ from Utils.Diffusion_utils.helpers import GaussianNoise
 from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
-exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
-# exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
+# exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
+exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
 seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [True]
+fixed_or_not = [False]
 hard_scenario = False
 with_entropy = False
 

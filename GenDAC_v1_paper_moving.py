@@ -254,9 +254,9 @@ fixed_UE = False
 # steps = [0.05]
 # steps = [0.5, 0.05, 0.0]
 
-seeds = [124, 125, 126, 127, 128]
-exps = ['exp185', 'exp186', 'exp187', 'exp188', 'exp189']
-steps = [0.01]
+seeds = [128]
+exps = ['exp184']
+steps = [0.0]
 
 hard_scenario = False
 DDIM = False
