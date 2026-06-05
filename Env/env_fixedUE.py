@@ -576,7 +576,7 @@ class cellularEnv(object):
     #=======================================================================================================================================#   
     # 累計各 slot 各切片的平均 Queue Length
     def record_queue_length(self):
-        self.queue_length_sum += self.pending_packets
+        self.queue_length_sum += self.get_buffer_length_per_slice()
     
     #=======================================================================================================================================#
     # 一個 Learning Window 中每一個 timeslot 都會執行

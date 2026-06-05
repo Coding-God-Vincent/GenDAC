@@ -101,6 +101,7 @@ def cal_slack(qoe, SLA_threshold):
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 def state_preprocessing(state, state2):
     processed_state = np.log1p(state) / 10  # 1e^9 -> 9*ln(1) ~ 20.7
+    state2 = state2 / 5.0  # state2 [0, 5]，還是正規化成 [0, 1] 跟 processed_state 量級比較接近。
     real_state = np.concatenate([processed_state, state2]).astype(np.float32)
     return real_state  # 壓到 [0~10] 之間
 
@@ -667,7 +668,7 @@ for i in range(len(seeds)):
             rew = reward.squeeze(),  # int
             terminated= False,
             truncated= False,
-            obs_next= state_preprocessing(env.get_state()[1], env.get_state2()[2])  # np.array with shape (3)
+            obs_next= state_preprocessing(env.get_state2()[1], env.get_state2()[2])  # np.array with shape (3)
         )
         buffer.add(data)
         
