@@ -305,6 +305,76 @@ class EnvMove(object):
                     if (self.sys_clock * 10000) % (self.learning_windows * 10000) == 0:  # last timeslot in the current learning window
                         lw = (self.learning_windows * 10000) / (self.time_subframe * 10000)  # calculate no. of timeslot in 1 window
                         self.band_ser_cat[i] = self.band_ser_cat[i] / lw  # calculate the average allocated band in a timeslot of each NSs
+
+        elif self.schedu_method == 'round_robin_reuse_rem' :
+            ser_cat = len(self.ser_cat)
+            band_ser_cat = self.band_ser_cat
+            RB_band = 180 * 10 ** 3
+
+            # collect the bandwidth remainder smaller than 1 RB
+            unused_band_rem = 0
+
+            # initialize self.ser_schedu_ind every window
+            if (self.sys_clock * 10000) % (self.learning_windows * 10000) == (self.time_subframe * 10000):
+                self.ser_schedu_ind = [0] * ser_cat
+
+            # Step1 : same as round_robin
+            for i in range(ser_cat):
+                # np.array with shape (滿足條件的 UE 的 index 個數)
+                UE_index = np.where((self.UE_cell == 1) &
+                                    (self.UE_buffer[0, :] != 0) &
+                                    (self.UE_cat == self.ser_cat[i]))[0]
+
+                UE_Active_No = len(UE_index)
+
+                # record empty-demand slots
+                if UE_Active_No == 0:
+                    if i == 0:
+                        self.volte_UE_slot += 1
+                    elif i == 1:
+                        self.embb_UE_slot += 1
+                    else:
+                        self.urllc_UE_slot += 1
+
+                # collect the part smaller than 1 RB
+                unused_band_rem += band_ser_cat[i] % RB_band
+
+                if UE_Active_No != 0:
+                    # only complete RBs are used in the original RR allocation
+                    RB_No = band_ser_cat[i] // RB_band  # 有多少塊完整的 RB
+                    RB_round = RB_No // UE_Active_No  # 每個人可以分到幾塊
+                    self.UE_band[UE_index] += RB_band * RB_round  # 每個 UE 分到的量
+                    
+                    # 分剩下的 RB
+                    RB_rem_no = int(RB_No - RB_round * UE_Active_No)
+                    left_no = np.where(UE_index > self.ser_schedu_ind[i])[0].size
+                    if left_no >= RB_rem_no:
+                        UE_act_index = UE_index[np.where(np.greater_equal(UE_index, self.ser_schedu_ind[i]))]
+                        UE_act_index = UE_act_index[:RB_rem_no]
+                        if UE_act_index.size != 0:
+                            self.UE_band[UE_act_index] += RB_band
+                            self.ser_schedu_ind[i] = UE_act_index[-1] + 1
+                    else:
+                        UE_act_index_par1 = UE_index[np.where(UE_index > self.ser_schedu_ind[i])]
+                        UE_act_index_par2 = UE_index[0:RB_rem_no - left_no]
+                        if UE_act_index_par2.size != 0:
+                            self.UE_band[np.hstack((UE_act_index_par1, UE_act_index_par2))] += RB_band
+                            self.ser_schedu_ind[i] = UE_act_index_par2[-1] + 1
+
+            # Step2 : combine the unused bandwidth remainders
+            extra_RB_no = int(unused_band_rem // RB_band)
+
+            if extra_RB_no > 0:
+                # find active eMBB users
+                embb_index = self.ser_cat.index('embb_general')
+                embb_UE_index = np.where((self.UE_cell == 1) &
+                                        (self.UE_buffer[0, :] != 0) &
+                                        (self.UE_cat == self.ser_cat[embb_index]))[0]
+
+                # fixedly assign the extra RBs to one active eMBB UE
+                if embb_UE_index.size != 0:
+                    target_ue = embb_UE_index[0]
+                    self.UE_band[target_ue] += extra_RB_no * RB_band
     
     #=======================================================================================================================================#
     # Calculate Data transmission rate of each UE according to Shannon Thoery
@@ -392,7 +462,7 @@ class EnvMove(object):
                         tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 800  # packet size is generated from a Pareto distribution with a parameter 1.2 & base = 800 bits
                         if tmp_buffer_size > 2000:  # upper bound is set to 2000 bits
                             tmp_buffer_size = 2000
-                    else:
+                    else: 
                         tmp_buffer_size = np.random.pareto(1.2, 1).squeeze() * 6400  # packet size is generated from a Pareto distribution with a parameter 1.2 & base = 6400 bits
                         if tmp_buffer_size > 12800:  # upper bound is set to 12800 bits
                             tmp_buffer_size = 12800
@@ -643,6 +713,18 @@ class EnvMove(object):
         # self.UE_buffer = np.zeros(self.UE_buffer.shape)
         # self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
         # self.UE_latency = np.zeros(self.UE_buffer.shape)
+        
+    
+    #=======================================================================================================================================#
+    # 回傳當前各切片所屬 UE 的 Queue length 平均
+    def get_buffer_length_per_slice(self):
+        buffer_packet_no_per_slice = np.zeros(len(self.ser_cat))
+        for i, ser_name in enumerate(self.ser_cat):
+            # self.UE_cat : np.array with shape (UE_max_no)
+            # np.where 回傳一個 tuple：(元素所在列, 元素所在行)
+            ue_index = np.where(self.UE_cat == ser_name)[0]  # ue_index : np.array(屬於 ser_name 的 UE 的 index)
+            buffer_packet_no_per_slice[i] = np.count_nonzero(self.UE_buffer[:, ue_index]) / len(ue_index)
+        return buffer_packet_no_per_slice
 
 #=======================================================================================================================================#
 # simulate the packet transmission from BS to UE with ue_id, starts from index0 in each queue

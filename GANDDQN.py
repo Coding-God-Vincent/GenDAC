@@ -48,8 +48,8 @@ from pathlib import Path
 
 
 seeds = [124, 125, 126, 127, 128]
-exps_fixed = ['exp25', 'exp26', 'exp27', 'exp28', 'exp29']
-exps_moving = ['exp20', 'exp21', 'exp22', 'exp23', 'exp24']
+exps_fixed = ['exp30', 'exp31', 'exp32', 'exp33', 'exp34']
+exps_moving = ['exp25', 'exp26', 'exp27', 'exp28', 'exp29']
 fixed_or_not = [True, False]
 hard_scenario = False
 
@@ -562,7 +562,10 @@ for fixed in fixed_or_not:
 
         #=============================================================================================================================================#
         # 回傳一個 WGAN-GP 的 Action Space : list
-        def action_space(total, num):  # total = 10 (total_band = 10MHz)，num = 3 (3 types of NS)
+        # total bandwidth = 10MHz
+        # Granularity = 200kHz, total = 50 -> 1176 種
+        # Granularity = 1MHz, total = 10 ，num = 3 (3 types of NS) -> 36 種動作
+        def action_space(total, num):  
             tmp = list(itertools.product(range(total + 1), repeat=num))  # itertools.product() : 產出所有 0~10 中取 3 個數字的所有組合。將 (x, y, z) 存入 tmp
             result = []
             # 從一堆 (x, y, z) 中挑出 x + y + z = 10 的組合存入 result
@@ -728,7 +731,7 @@ for fixed in fixed_or_not:
         ser_cat_vec = ['volte', 'embb_general', 'urllc']
         if hard_scenario: band_whole_no = 20 * 10**6  
         else: band_whole_no = 10 * 10**6  # 10MHz
-        band_per = 1 * 10**6  # bandwidth allocation resolution : 1MHz
+        band_per = 200 * 10**3  # bandwidth allocation resolution : 1MHz / 200KHz
         qoe_weight = [1, 1, 1]
         se_weight = 0.01
         if hard_scenario: dl_mimo = 3  # MIMO 天線數
@@ -742,9 +745,10 @@ for fixed in fixed_or_not:
         env.activity()  # 開始第一個 timeslot，指派各 UE readtime，並依照 readtime 決定是否要新增封包
 
         # 設定 action_space
-        action_space = action_space(10, 3) * band_per
+        # action_space = action_space(10, 3) * band_per  # Granularity = 1MHz
+        action_space = action_space(50, 3) * band_per  # Granularity = 200KHz
         num_actions = len(action_space)
-        # print(num_actions)  # 36
+        print(num_actions)  # 36
 
         # 設定 model
         # static_policy = False -> 代表現在是 train。
