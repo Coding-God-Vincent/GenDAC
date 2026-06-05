@@ -126,6 +126,8 @@ class EnvMove(object):
         # 看一下是哪一種 Packet 被 violate，每一格對應一個 packet size : {6.4, 12.8, 19.2, 25.6, 32} KB 
         self.urllc_violate_packet_size = np.zeros(5)
         self.drop_pkt_no = np.zeros(len(self.ser_cat))
+        # 計算一個 window 中的各切片所有 UE 平均的 Queue Length
+        self.queue_length_sum = np.zeros(len(ser_cat))
 
     #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
@@ -525,6 +527,30 @@ class EnvMove(object):
         dis = np.array([self.volte_dis, self.embb_dis, self.urllc_dis])
         total_bits = self.tx_bit_no
         return pkt, total_bits
+    
+    #=======================================================================================================================================#   
+    # 取得環境的狀態，即一個 learning window 中各網路切片分別要傳的封包個數 (d0, d1, d2) 以及總 bits 數
+    # 這邊比 def get_state(self) 多一個狀態，就是前一個 window 的各切片所有 UE 的平均 Queue Length，用來反應是否有傳完
+    def get_state2(self):
+        #state = np.zeros(len(self.ser_cat))
+        #for ser_name in self.ser_cat:
+        #    ue_index = np.where(self.UE_cat == ser_name)
+        #    state[self.ser_cat.index(ser_name)] = np.where(self.UE_buffer[0,ue_index[0]] != 0)[0].size
+        
+        # 不能把丟失的封包拿一起算在狀態之中，因為實務上是做不到的，downlink 傳輸只看的到準備要傳的，看不到塞不進來的
+        total_packets = self.tx_pkt_no
+        total_bits = self.tx_bit_no
+        
+        # 計算前一個 window 各切片所有 UE 的平均 Queue Length
+        # self.learning_windows 目前是 1s，除以 self.time_subframe (0.5ms) 後才會是 slots 個數
+        avg_queue_length = self.queue_length_sum / (self.learning_windows / self.time_subframe)
+
+        return total_packets, total_bits, avg_queue_length
+    
+    #=======================================================================================================================================#   
+    # 累計各 slot 各切片的平均 Queue Length
+    def record_queue_length(self):
+        self.queue_length_sum += self.get_buffer_length_per_slice()
 
     #=======================================================================================================================================#
     def store_reward(self, rate):
@@ -713,6 +739,8 @@ class EnvMove(object):
         # self.UE_buffer = np.zeros(self.UE_buffer.shape)
         # self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
         # self.UE_latency = np.zeros(self.UE_buffer.shape)
+        # 重置當前 window 所有 slot 各 UE 的平均 Queue Length
+        self.queue_length_sum = np.zeros(len(self.ser_cat))
         
     
     #=======================================================================================================================================#
@@ -723,7 +751,8 @@ class EnvMove(object):
             # self.UE_cat : np.array with shape (UE_max_no)
             # np.where 回傳一個 tuple：(元素所在列, 元素所在行)
             ue_index = np.where(self.UE_cat == ser_name)[0]  # ue_index : np.array(屬於 ser_name 的 UE 的 index)
-            buffer_packet_no_per_slice[i] = np.count_nonzero(self.UE_buffer[:, ue_index]) / len(ue_index)
+            if len(ue_index) == 0: buffer_packet_no_per_slice[i] = 0
+            else: buffer_packet_no_per_slice[i] = np.count_nonzero(self.UE_buffer[:, ue_index]) / len(ue_index)
         return buffer_packet_no_per_slice
 
 #=======================================================================================================================================#

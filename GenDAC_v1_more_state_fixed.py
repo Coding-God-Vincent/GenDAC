@@ -262,7 +262,7 @@ fixed_UE = True
 # steps = [0.5, 0.05, 0.0]
 
 seeds = [124]
-exps = ['exp190']
+exps = ['exp191']
 hard_scenario = False
 DDIM = False
 
@@ -663,7 +663,7 @@ for i in range(len(seeds)):
 
         # store the experience to the ReplayBuffer
         data = Batch(
-            obs= state,  # np.array with shape (3)
+            obs= state,  # np.array with shape (6)
             act = action_logit,  # np.array with shape (3)
             rew = reward.squeeze(),  # int
             terminated= False,

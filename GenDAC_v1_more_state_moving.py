@@ -97,10 +97,13 @@ def cal_slack(qoe, SLA_threshold):
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # State Preprocessing : log-scale
 # state : np.array with shape (3)
+# state2 : avg queue length of each slice of the previous window, np.array with shape (3)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-def state_preprocessing(state):
-    log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
-    return log_state / 10.0  # 壓到 [0~10] 之間
+def state_preprocessing(state, state2):
+    processed_state = np.log1p(state) / 10  # 1e^9 -> 9*ln(1) ~ 20.7
+    state2 = state2 / 5.0  # state2 [0, 5]，還是正規化成 [0, 1] 跟 processed_state 量級比較接近。
+    real_state = np.concatenate([processed_state, state2]).astype(np.float32)
+    return real_state  # 壓到 [0~10] 之間
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -243,7 +246,7 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 '''system env setup'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
-fixed_UE = True
+fixed_UE = False
 # exps_1 = ['exp123', 'exp124', 'exp125', 'exp126', 'exp127']
 # exps_5 = ['exp128', 'exp129', 'exp130', 'exp131', 'exp132']
 # exps_7 = ['exp133', 'exp134', 'exp135', 'exp136', 'exp137']
@@ -259,7 +262,7 @@ fixed_UE = True
 # steps = [0.5, 0.05, 0.0]
 
 seeds = [124]
-exps = ['exp190']
+exps = ['exp191']
 hard_scenario = False
 DDIM = False
 
@@ -299,7 +302,7 @@ for i in range(len(seeds)):
 
     # env parameters
     ser_cat = ['volte', 'embb_general', 'urllc']
-    state_dim = len(ser_cat)
+    state_dim = len(ser_cat) * 2  # [d1, d2, d3, avg_q1, avg_q2, avg_q3]
     action_dim = len(ser_cat)
 
     # training parameters
@@ -436,7 +439,8 @@ for i in range(len(seeds)):
     env.activity()  # 所有 UE 開始根據其網路切片產生封包
     # observation_packets : total packets of each NSs, np.array with shape (3)
     # observation_bits : total bits of each NSs, np.array with shape (3)
-    observation_packets, observation_bits = env.get_state()  
+    # avg_queue_length_of_each_slices : 前一個 window 各切片所有 UE 的平均 Queue Length, np.array with shape (3)
+    observation_packets, observation_bits, avg_queue_length_of_each_slices = env.get_state2()  
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # recording lists
@@ -554,10 +558,6 @@ for i in range(len(seeds)):
     # for frame in tqdm(range(prefill_steps, total_timesteps)):
     for frame in tqdm(range(0, total_timesteps)):
         
-        # 算一個 window 的中各切片所屬 UE 的平均 Queue length
-        # np.array with shape (3), [volte, embb, urllc]
-        avg_queue_length_of_each_slices = np.zeros(len(ser_cat))
-        
         print(f"\n\n******Episode {frame} :")
 
         # Curicculum Learning : Adjust max_action dynamically
@@ -591,9 +591,9 @@ for i in range(len(seeds)):
         d2ac_opt.recon_param = current_lambda
 
         # state is the loading (no. of packets) of each NS of the previous learning window
-        state = state_preprocessing(state= observation_bits)  
+        state = state_preprocessing(state= observation_bits, state2= avg_queue_length_of_each_slices)  
         # print(f"observation_packets = {observation_packets}, observation_bits = {observation_bits}")
-        # print(f"state = {state}")  # 介於 [1, 2]
+        print(f"state = {state}")  # np.array with shape (ser_cat * 2)
 
         # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
         # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
@@ -628,10 +628,9 @@ for i in range(len(seeds)):
         for _ in range(learning_windows):
             env.scheduling()  # do lower-level allocation every timeslots
             env.provisioning()  # evaluate the SE & SSR of the current timeslot
-            avg_queue_length_of_each_slices += env.get_buffer_length_per_slice()
             env.activity()  # assign readtime & generate packet according to the readtime
+            env.record_queue_length()
             
-        avg_queue_length_of_each_slices = avg_queue_length_of_each_slices / learning_windows
         
         # calculate the reward of the current learning window
         # qoe : np.array with shape (3)
@@ -664,14 +663,17 @@ for i in range(len(seeds)):
 
         # store the experience to the ReplayBuffer
         data = Batch(
-            obs= state,  # np.array with shape (3)
+            obs= state,  # np.array with shape (6)
             act = action_logit,  # np.array with shape (3)
             rew = reward.squeeze(),  # int
             terminated= False,
             truncated= False,
-            obs_next= state_preprocessing(env.get_state()[1])  # np.array with shape (3)
+            obs_next= state_preprocessing(env.get_state2()[1], env.get_state2()[2])  # np.array with shape (3)
         )
         buffer.add(data)
+        
+        # get avg_queue_length_of_each_slice of the current window for recording
+        _, _, avg_queue_length_of_each_slices = env.get_state2()
         
         # update the model after warming up
         if len(buffer) >= batch_size * 3:
@@ -746,8 +748,8 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'avg_queue_length/embb', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
         writer.add_scalar(tag= 'avg_queue_length/urllc', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
         
-        # gain next state (loading of each NS in the previous learning window)
-        observation_packets, observation_bits = env.get_state()
+        # get next_state
+        observation_packets, observation_bits, avg_queue_length_of_each_slices = env.get_state2()
 
         # reset all counters after each learning window
         env.countReset()
