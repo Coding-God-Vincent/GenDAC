@@ -259,7 +259,7 @@ fixed_UE = True
 # steps = [0.5, 0.05, 0.0]
 
 seeds = [124]
-exps = ['exp190']
+exps = ['exp194']
 hard_scenario = False
 DDIM = False
 
@@ -427,7 +427,7 @@ for i in range(len(seeds)):
     learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
     prefill_steps = 3 * batch_size
     if hard_scenario: dl_mimo = 3  # 原本是 64
-    else: dl_mimo = 16
+    else: dl_mimo = 8
     UE_no = 100 if fixed_UE else 300
     if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario, schedu_method= 'round_robin_reuse_rem')
     else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)

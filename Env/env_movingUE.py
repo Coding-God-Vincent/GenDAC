@@ -750,8 +750,8 @@ class EnvMove(object):
         for i, ser_name in enumerate(self.ser_cat):
             # self.UE_cat : np.array with shape (UE_max_no)
             # np.where 回傳一個 tuple：(元素所在列, 元素所在行)
-            ue_index = np.where(self.UE_cat == ser_name)[0]  # ue_index : np.array(屬於 ser_name 的 UE 的 index)
-            if len(ue_index) == 0: buffer_packet_no_per_slice[i] = 0
+            ue_index = np.where((self.UE_cat == ser_name) & (self.UE_cell == 1))[0]  # ue_index : np.array(屬於 ser_name 的 UE 的 index)
+            if len(ue_index) == 0: buffer_packet_no_per_slice[i] = 0.0
             else: buffer_packet_no_per_slice[i] = np.count_nonzero(self.UE_buffer[:, ue_index]) / len(ue_index)
         return buffer_packet_no_per_slice
 

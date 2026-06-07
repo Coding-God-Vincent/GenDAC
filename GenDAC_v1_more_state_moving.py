@@ -262,7 +262,7 @@ fixed_UE = False
 # steps = [0.5, 0.05, 0.0]
 
 seeds = [124]
-exps = ['exp191']
+exps = ['exp215']
 hard_scenario = False
 DDIM = False
 
