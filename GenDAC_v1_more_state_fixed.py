@@ -271,8 +271,8 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = True
-seeds = [124]
-exps = ['exp193']
+seeds = [124, 125, 126, 127, 128]
+exps = ['exp270', 'exp271', 'exp272', 'exp273', 'exp274']
 hard_scenario = False
 DDIM = False
 
