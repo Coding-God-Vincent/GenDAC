@@ -76,7 +76,7 @@ class cellularEnv(object):
 
         
     ):
-    
+        self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
         self.BS_radius = BS_radius
         
@@ -112,7 +112,7 @@ class cellularEnv(object):
         UE_pos = np.random.uniform(-self.BS_radius, self.BS_radius, [self.UE_max_no, 2])
         # 計算每個 UE 到基地台的距離 sqrt( (x1 - x2)^2 + (y1 - y2)^2 )
         # shape = (UE_max_no, 1)，即每一個 UE 跟 BS 的距離
-        dis = np.sqrt(np.sum((BS_pos - UE_pos) **2 , axis = 1)) / 1000 # unit changes to km，為了要算 path loss
+        dis = np.sqrt(np.sum((self.BS_pos - UE_pos) **2 , axis = 1)) / 1000 # unit changes to km，為了要算 path loss
         
         # 根據 3GPP TR 36.814 的 path loss model (dis.unit = km)
         # 回傳一個 shape 是 (UE_max_no, 1) 的 np.array，每一格都代表該 UE 的 path loss (照定義應該要是負的，但這邊把它定義成正的)
@@ -170,6 +170,10 @@ class cellularEnv(object):
         self.urllc_violate_packet_size = np.zeros(5)
         # 計算一個 window 中的各切片所有 UE 平均的 Queue Length
         self.queue_length_sum = np.zeros(len(ser_cat))
+        # 累計一個 window 中每個 slot 的 active UE no
+        self.active_ue_no_sum = np.zeros(len(ser_cat))
+        # 累計一個 window 中每個 slot 的 active UEs 平均的 UE-BS distance
+        self.active_ue_distance_sum = np.zeros(len(ser_cat))
         
         
 
@@ -563,20 +567,68 @@ class cellularEnv(object):
         #    ue_index = np.where(self.UE_cat == ser_name)
         #    state[self.ser_cat.index(ser_name)] = np.where(self.UE_buffer[0,ue_index[0]] != 0)[0].size
         
+        slot_no = self.learning_windows / self.time_subframe
+        
         # 不能把丟失的封包拿一起算在狀態之中，因為實務上是做不到的，downlink 傳輸只看的到準備要傳的，看不到塞不進來的
         total_packets = self.tx_pkt_no
         total_bits = self.tx_bit_no
         
         # 計算前一個 window 各切片所有 UE 的平均 Queue Length
         # self.learning_windows 目前是 1s，除以 self.time_subframe (0.5ms) 後才會是 slots 個數
-        avg_queue_length = self.queue_length_sum / (self.learning_windows / self.time_subframe)
+        avg_queue_length = self.queue_length_sum / slot_no
 
         return total_packets, total_bits, avg_queue_length
    
     #=======================================================================================================================================#   
+    # 取得環境的狀態，即一個 learning window 中各網路切片分別要傳的封包個數 (d0, d1, d2) 以及總 bits 數
+    # 這邊比 def get_state(self) 多一個狀態，就是前一個 window 的各切片所有 UE 的平均 Queue Length，用來反應是否有傳完
+    def get_mobility_state(self):
+        slot_no = self.learning_windows / self.time_subframe
+        # 計算前一個 window 中各切片的平均 active UE no
+        avg_active_ue_no = self.active_ue_no_sum / slot_no
+        # 計算前一個 window 中各切片的各 UE 的平均 BS-UE 距離
+        avg_active_ue_distance = self.active_ue_distance_sum / slot_no
+        
+        return avg_active_ue_no, avg_active_ue_distance
+        
+    #=======================================================================================================================================#   
     # 累計各 slot 各切片的平均 Queue Length
+    # 一起累計 active_ue_no & avg_distance
     def record_queue_length(self):
         self.queue_length_sum += self.get_buffer_length_per_slice()
+        active_ue_no, avg_distance = self.get_active_user_info_per_slice()
+        self.active_ue_no_sum += active_ue_no
+        self.active_ue_distance_sum += avg_distance
+        
+        
+    #=======================================================================================================================================#   
+    # active_user_no : shape (len(self.ser_cat))
+    # avg_distance : shape (len(self.ser_cat))
+    def get_active_user_info_per_slice(self):
+        active_user_no = np.zeros(len(self.ser_cat))
+        avg_distance = np.zeros(len(self.ser_cat))
+
+        # distance from each UE to BS, unit = meter
+        # self.UE_pos : np.array with shape (self.UE_max_no, 2)
+        # ue_distance : np.array with shape (self.UE_max_no)
+        ue_distance = np.sqrt(np.sum((self.BS_pos - self.UE_pos) ** 2, axis=1))
+
+        # 找出各 slice 中 active UE。包括：UE_buffer 有東西
+        for i, ser_name in enumerate(self.ser_cat):
+            # ue_index : np.array with shape (self.UE_max_no)
+            ue_index = np.where(
+                (self.UE_cat == ser_name) &
+                (self.UE_buffer[0, :] != 0)
+            )[0]
+
+            active_user_no[i] = len(ue_index)
+
+            if len(ue_index) == 0:
+                avg_distance[i] = 0.0
+            else:
+                avg_distance[i] = np.mean(ue_distance[ue_index])
+
+        return active_user_no, avg_distance
     
     #=======================================================================================================================================#
     # 一個 Learning Window 中每一個 timeslot 都會執行
@@ -782,7 +834,10 @@ class cellularEnv(object):
         self.urllc_violate_packet_size = np.zeros(5)
         # 重置當前 window 所有 slot 各 UE 的平均 Queue Length
         self.queue_length_sum = np.zeros(len(self.ser_cat))
-
+        
+        self.active_user_no_sum = np.zeros(len(self.ser_cat))
+        self.active_user_distance_sum = np.zeros(len(self.ser_cat))
+        
         # 待傳送給各 UE 的封包的 Queue & Latency 的計算
         # **這不應該在每一個 learning window 的最後全部重置，否則問題會變成 contextual bandit
         # self.UE_buffer = np.zeros(self.UE_buffer.shape)

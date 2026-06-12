@@ -128,6 +128,10 @@ class EnvMove(object):
         self.drop_pkt_no = np.zeros(len(self.ser_cat))
         # 計算一個 window 中的各切片所有 UE 平均的 Queue Length
         self.queue_length_sum = np.zeros(len(ser_cat))
+        # 累計一個 window 中每個 slot 的 active UE number
+        self.active_user_no_sum = np.zeros(len(ser_cat))
+        # 累計一個 window 中每個 slot 的 active UEs 平均 UE-BS distance
+        self.active_user_distance_sum = np.zeros(len(ser_cat))
 
     #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
@@ -547,10 +551,22 @@ class EnvMove(object):
 
         return total_packets, total_bits, avg_queue_length
     
+    #=======================================================================================================================================#
+    def get_mobility_state(self):
+        slot_no = self.learning_windows / self.time_subframe
+
+        active_user_no_avg = self.active_user_no_sum / slot_no
+        avg_distance_avg = self.active_user_distance_sum / slot_no
+
+        return active_user_no_avg, avg_distance_avg
+    
     #=======================================================================================================================================#   
     # 累計各 slot 各切片的平均 Queue Length
     def record_queue_length(self):
         self.queue_length_sum += self.get_buffer_length_per_slice()
+        active_user_no, avg_distance = self.get_active_user_info_per_slice()
+        self.active_user_no_sum += active_user_no
+        self.active_user_distance_sum += avg_distance
 
     #=======================================================================================================================================#
     def store_reward(self, rate):
@@ -741,6 +757,8 @@ class EnvMove(object):
         # self.UE_latency = np.zeros(self.UE_buffer.shape)
         # 重置當前 window 所有 slot 各 UE 的平均 Queue Length
         self.queue_length_sum = np.zeros(len(self.ser_cat))
+        self.active_user_no_sum = np.zeros(len(self.ser_cat))
+        self.active_user_distance_sum = np.zeros(len(self.ser_cat))
         
     
     #=======================================================================================================================================#
@@ -754,6 +772,32 @@ class EnvMove(object):
             if len(ue_index) == 0: buffer_packet_no_per_slice[i] = 0.0
             else: buffer_packet_no_per_slice[i] = np.count_nonzero(self.UE_buffer[:, ue_index]) / len(ue_index)
         return buffer_packet_no_per_slice
+    
+    #=======================================================================================================================================#
+    # active_user_no : shape (len(self.ser_cat))
+    # avg_distance : shape (len(self.ser_cat))
+    def get_active_user_info_per_slice(self):
+        active_user_no = np.zeros(len(self.ser_cat))
+        avg_distance = np.zeros(len(self.ser_cat))
+
+        # distance from each UE to BS, unit = meter
+        ue_distance = np.sqrt(np.sum((self.BS_pos - self.UE_pos) ** 2, axis=1))
+
+        for i, ser_name in enumerate(self.ser_cat):
+            ue_index = np.where(
+                (self.UE_cell == 1) &
+                (self.UE_cat == ser_name) &
+                (self.UE_buffer[0, :] != 0)
+            )[0]
+
+            active_user_no[i] = len(ue_index)
+
+            if len(ue_index) == 0:
+                avg_distance[i] = 0.0
+            else:
+                avg_distance[i] = np.mean(ue_distance[ue_index])
+
+        return active_user_no, avg_distance
 
 #=======================================================================================================================================#
 # simulate the packet transmission from BS to UE with ue_id, starts from index0 in each queue

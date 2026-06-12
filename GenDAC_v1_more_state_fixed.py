@@ -99,11 +99,35 @@ def cal_slack(qoe, SLA_threshold):
 # state : np.array with shape (3)
 # state2 : avg queue length of each slice of the previous window, np.array with shape (3)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-def state_preprocessing(state, state2):
-    processed_state = np.log1p(state) / 10  # 1e^9 -> 9*ln(1) ~ 20.7
-    state2 = state2 / 5.0  # state2 [0, 5]，還是正規化成 [0, 1] 跟 processed_state 量級比較接近。
-    real_state = np.concatenate([processed_state, state2]).astype(np.float32)
-    return real_state  # 壓到 [0~10] 之間
+def state_preprocessing(state, 
+                        avg_queue_length= None,
+                        active_user_no= None,
+                        avg_distance= None,
+                        use_queue_state= True,  # use avg_queue_length as state
+                        use_mobility_state= False,  # use avg_user_no & avg_ue_bs_distance as state
+                        active_user_norm= 300.0,
+                        distance_norm= 40.0
+):
+    state_features = []
+    # 1. admitted demand/traffic loading
+    processed_state = np.log1p(state) / 10  # 1e^9 -> 9*ln(1) ~ 20.7, 正規化後會借於 [0, 10]
+    state_features.append(processed_state)
+    
+    # 2. Queue state : avg_queue_len
+    if use_queue_state:
+        processed_queue_state = avg_queue_length / 5.0  # avg_queue_length [0, 5]，還是正規化成 [0, 1] 跟 processed_state 量級比較接近。
+        state_features.append(processed_queue_state)
+
+    # 3. Mobility state : avg_active_ue_no, avg_active_ue_distance
+    if use_mobility_state:
+        processed_active_user_no = active_user_no / active_user_norm
+        processed_avg_distance = avg_distance / distance_norm
+        state_features.append(processed_active_user_no)
+        state_features.append(processed_avg_distance)
+    
+    real_state = np.concatenate(state_features).astype(np.float32)
+        
+    return real_state  
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -247,24 +271,29 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = True
-# exps_1 = ['exp123', 'exp124', 'exp125', 'exp126', 'exp127']
-# exps_5 = ['exp128', 'exp129', 'exp130', 'exp131', 'exp132']
-# exps_7 = ['exp133', 'exp134', 'exp135', 'exp136', 'exp137']
-# seeds = [125, 126, 127, 128]
-# steps = [1, 5, 7]
-
-# seeds_0 = [125, 126, 127, 128]
-# seeds_others = [126, 127, 128]
-
-# exps_05 = ['exp152', 'exp153', 'exp154']
-# exps_005 = ['exp156', 'exp157', 'exp158']
-# exps_0 = ['exp159', 'exp160', 'exp161', 'exp162']
-# steps = [0.5, 0.05, 0.0]
-
 seeds = [124]
 exps = ['exp193']
 hard_scenario = False
 DDIM = False
+
+'''State Control (only 1 True allowed)'''
+'''State 1'''
+# bits of previous winodw packets of each slice (ever get in queue)
+'''State 2'''
+# bits of previous winodw packets of each slice (ever get in queue), avg queue length of UEs of each slice
+use_queue_state = True
+'''State 3'''
+use_mobility_state = True
+# 新增兩個 mobility 相關的資訊，一個是各切片的 active UE no，另一個是各切片所屬的 active UE 跟 BS 之間的平均距離
+
+# ex: if use_queue_state = True, use_mobility_state = False
+# [d1, d2, d3, q1, q2, q3]
+
+# ex: if use_queue_state = True, use_mobility_state = True
+# [d1, d2, d3, q1, q2, q3, an1, an2, an3, avgd1, avgd2, avgd3]
+
+# 依照使用的不同 state 去自動調整 state_dim
+state_block_no = 1
 
 
 
@@ -302,7 +331,10 @@ for i in range(len(seeds)):
 
     # env parameters
     ser_cat = ['volte', 'embb_general', 'urllc']
-    state_dim = len(ser_cat) * 2  # [d1, d2, d3, avg_q1, avg_q2, avg_q3]
+    
+    if use_queue_state: state_block_no += 1
+    if use_mobility_state: state_block_no += 2
+    state_dim = len(ser_cat) * state_block_no
     action_dim = len(ser_cat)
 
     # training parameters
@@ -441,6 +473,7 @@ for i in range(len(seeds)):
     # observation_bits : total bits of each NSs, np.array with shape (3)
     # avg_queue_length_of_each_slices : 前一個 window 各切片所有 UE 的平均 Queue Length, np.array with shape (3)
     observation_packets, observation_bits, avg_queue_length_of_each_slices = env.get_state2()  
+    active_user_no_each_slices, avg_distance_of_each_slices = env.get_mobility_state()
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # recording lists
@@ -591,7 +624,15 @@ for i in range(len(seeds)):
         d2ac_opt.recon_param = current_lambda
 
         # state is the loading (no. of packets) of each NS of the previous learning window
-        state = state_preprocessing(state= observation_bits, state2= avg_queue_length_of_each_slices)  
+        state = state_preprocessing(state= observation_bits, 
+                                    avg_queue_length= avg_queue_length_of_each_slices,
+                                    active_user_no= active_user_no_each_slices,
+                                    avg_distance= avg_distance_of_each_slices,
+                                    use_queue_state= use_queue_state,
+                                    use_mobility_state= use_mobility_state,
+                                    active_user_norm= float(UE_no),
+                                    distance_norm= 40
+        )  
         # print(f"observation_packets = {observation_packets}, observation_bits = {observation_bits}")
         print(f"state = {state}")  # np.array with shape (ser_cat * 2)
 
@@ -660,6 +701,19 @@ for i in range(len(seeds)):
         SEs.append(se.tolist()[0])  # se.tolist() -> [se]
         Rewards.append(reward.item())  
         Utilities.append(utility.item())
+        
+        next_observation_packets, next_observation_bits, next_avg_queue_length = env.get_state2()
+        next_active_user_no, next_avg_distance = env.get_mobility_state()
+        obs_next = state_preprocessing(
+            state= next_observation_bits,
+            avg_queue_length= next_avg_queue_length,
+            active_user_no= next_active_user_no,
+            avg_distance= next_avg_distance,
+            use_queue_state= use_queue_state,
+            use_mobility_state= use_mobility_state,
+            active_user_norm= float(UE_no),
+            distance_norm= 40.0
+        )
 
         # store the experience to the ReplayBuffer
         data = Batch(
@@ -668,12 +722,13 @@ for i in range(len(seeds)):
             rew = reward.squeeze(),  # int
             terminated= False,
             truncated= False,
-            obs_next= state_preprocessing(env.get_state2()[1], env.get_state2()[2])  # np.array with shape (3)
+            obs_next= obs_next  # np.array with shape (3)
         )
         buffer.add(data)
         
         # get avg_queue_length_of_each_slice of the current window for recording
         _, _, avg_queue_length_of_each_slices = env.get_state2()
+
         
         # update the model after warming up
         if len(buffer) >= batch_size * 3:
@@ -747,9 +802,19 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'avg_queue_length/volte', scalar_value= avg_queue_length_of_each_slices[0], global_step= frame)
         writer.add_scalar(tag= 'avg_queue_length/embb', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
         writer.add_scalar(tag= 'avg_queue_length/urllc', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
+        writer.add_scalar(tag= 'active_user_no/volte', scalar_value= active_user_no_of_each_slices[0], global_step=frame)
+        writer.add_scalar(tag= 'active_user_no/embb', scalar_value= active_user_no_of_each_slices[1], global_step=frame)
+        writer.add_scalar(tag= 'active_user_no/urllc', scalar_value= active_user_no_of_each_slices[2], global_step=frame)
+        writer.add_scalar(tag= 'avg_distance/volte', scalar_value= avg_distance_of_each_slices[0], global_step=frame)
+        writer.add_scalar(tag= 'avg_distance/embb', scalar_value= avg_distance_of_each_slices[1], global_step=frame)
+        writer.add_scalar(tag= 'avg_distance/urllc', scalar_value= avg_distance_of_each_slices[2], global_step=frame)
         
-        # get next_state
-        observation_packets, observation_bits, avg_queue_length_of_each_slices = env.get_state2()
+        # update current state variables for next decision window
+        observation_packets = next_observation_packets
+        observation_bits = next_observation_bits
+        avg_queue_length_of_each_slices = next_avg_queue_length
+        active_user_no_of_each_slices = next_active_user_no
+        avg_distance_of_each_slices = next_avg_distance
 
         # reset all counters after each learning window
         env.countReset()
