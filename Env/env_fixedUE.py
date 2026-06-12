@@ -109,10 +109,10 @@ class cellularEnv(object):
         self.UE_band = np.zeros(UE_max_no)
         # 隨機生成所有 UE 的位置
         # [-self.BS_radius, self.BS_radius] 中均勻隨機產生出一個 shape 為 [self.UE_max_no, 2] 的二維陣列
-        UE_pos = np.random.uniform(-self.BS_radius, self.BS_radius, [self.UE_max_no, 2])
+        self.UE_pos = np.random.uniform(-self.BS_radius, self.BS_radius, [self.UE_max_no, 2])
         # 計算每個 UE 到基地台的距離 sqrt( (x1 - x2)^2 + (y1 - y2)^2 )
         # shape = (UE_max_no, 1)，即每一個 UE 跟 BS 的距離
-        dis = np.sqrt(np.sum((self.BS_pos - UE_pos) **2 , axis = 1)) / 1000 # unit changes to km，為了要算 path loss
+        dis = np.sqrt(np.sum((self.BS_pos - self.UE_pos) **2 , axis = 1)) / 1000 # unit changes to km，為了要算 path loss
         
         # 根據 3GPP TR 36.814 的 path loss model (dis.unit = km)
         # 回傳一個 shape 是 (UE_max_no, 1) 的 np.array，每一格都代表該 UE 的 path loss (照定義應該要是負的，但這邊把它定義成正的)
@@ -835,8 +835,8 @@ class cellularEnv(object):
         # 重置當前 window 所有 slot 各 UE 的平均 Queue Length
         self.queue_length_sum = np.zeros(len(self.ser_cat))
         
-        self.active_user_no_sum = np.zeros(len(self.ser_cat))
-        self.active_user_distance_sum = np.zeros(len(self.ser_cat))
+        self.active_ue_no_sum = np.zeros(len(self.ser_cat))
+        self.active_ue_distance_sum = np.zeros(len(self.ser_cat))
         
         # 待傳送給各 UE 的封包的 Queue & Latency 的計算
         # **這不應該在每一個 learning window 的最後全部重置，否則問題會變成 contextual bandit

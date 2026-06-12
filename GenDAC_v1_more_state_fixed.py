@@ -276,7 +276,7 @@ exps = ['exp193']
 hard_scenario = False
 DDIM = False
 
-'''State Control (only 1 True allowed)'''
+'''State Control'''
 '''State 1'''
 # bits of previous winodw packets of each slice (ever get in queue)
 '''State 2'''
@@ -292,8 +292,7 @@ use_mobility_state = True
 # ex: if use_queue_state = True, use_mobility_state = True
 # [d1, d2, d3, q1, q2, q3, an1, an2, an3, avgd1, avgd2, avgd3]
 
-# 依照使用的不同 state 去自動調整 state_dim
-state_block_no = 1
+
 
 
 
@@ -332,6 +331,8 @@ for i in range(len(seeds)):
     # env parameters
     ser_cat = ['volte', 'embb_general', 'urllc']
     
+    # 依照使用的不同 state 去自動調整 state_dim
+    state_block_no = 1
     if use_queue_state: state_block_no += 1
     if use_mobility_state: state_block_no += 2
     state_dim = len(ser_cat) * state_block_no
@@ -473,7 +474,7 @@ for i in range(len(seeds)):
     # observation_bits : total bits of each NSs, np.array with shape (3)
     # avg_queue_length_of_each_slices : 前一個 window 各切片所有 UE 的平均 Queue Length, np.array with shape (3)
     observation_packets, observation_bits, avg_queue_length_of_each_slices = env.get_state2()  
-    active_user_no_each_slices, avg_distance_of_each_slices = env.get_mobility_state()
+    active_user_no_of_each_slices, avg_distance_of_each_slices = env.get_mobility_state()
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # recording lists
@@ -626,7 +627,7 @@ for i in range(len(seeds)):
         # state is the loading (no. of packets) of each NS of the previous learning window
         state = state_preprocessing(state= observation_bits, 
                                     avg_queue_length= avg_queue_length_of_each_slices,
-                                    active_user_no= active_user_no_each_slices,
+                                    active_user_no= active_user_no_of_each_slices,
                                     avg_distance= avg_distance_of_each_slices,
                                     use_queue_state= use_queue_state,
                                     use_mobility_state= use_mobility_state,
@@ -725,10 +726,6 @@ for i in range(len(seeds)):
             obs_next= obs_next  # np.array with shape (3)
         )
         buffer.add(data)
-        
-        # get avg_queue_length_of_each_slice of the current window for recording
-        _, _, avg_queue_length_of_each_slices = env.get_state2()
-
         
         # update the model after warming up
         if len(buffer) >= batch_size * 3:
