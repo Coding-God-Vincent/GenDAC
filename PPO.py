@@ -320,13 +320,22 @@ for fixed in fixed_or_not:
             # update models
             if Buffer.len() >= trajectory_length:
                 # 取得 last value
-                _, _, last_value = Ppoopt.rollout(state= next_state)
-                actor_loss, critic_loss, entropy_loss = Ppoopt.update(buffer= Buffer, last_value= last_value, batch_size= batch_size)
-                loss = {
-                    'actor_loss' : actor_loss,
-                    'critic_loss' : critic_loss,
-                    'entropy_loss' : entropy_loss
-                }
+                if using_tanh:
+                    _, _, last_value = Ppoopt.rollout(state= next_state)
+                    actor_loss, critic_loss, entropy_loss = Ppoopt.update(buffer= Buffer, last_value= last_value, batch_size= batch_size)
+                    loss = {
+                        'actor_loss' : actor_loss,
+                        'critic_loss' : critic_loss,
+                        'entropy_loss' : entropy_loss
+                    }
+                else:
+                    _, _, last_value = Ppoopt.rollout_no_tanh(state= next_state)
+                    actor_loss, critic_loss, entropy_loss = Ppoopt.update_no_tanh(buffer= Buffer, last_value= last_value, batch_size= batch_size)
+                    loss = {
+                        'actor_loss' : actor_loss,
+                        'critic_loss' : critic_loss,
+                        'entropy_loss' : entropy_loss
+                    }
                 # adjust learning rate
                 # scheduler_actor.step()
                 # scheduler_critic.step()
