@@ -245,33 +245,28 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 # hyperparameters
 fixed_UE = True
 
-steps = [7]
+dl_mimos = [1, 8]
 
-seeds = [126, 127, 128]
+seeds = [124]
 
-exps_7 = ['exp221', 'exp222', 'exp223']
+exps = ['exp300', 'exp301']
+
 
 hard_scenario = False
 DDIM = False
 
 
-for step in steps:
-
-    if step == 1: exps = exps_1
-    elif step == 5: exps = exps_5
-    else: exps = exps_7
+for d, dl_mimo in enumerate(dl_mimos):
 
     for i in range(len(seeds)):
         
-        print(f"step = {step}")
-
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         set_seed(seed= seeds[i])
         if fixed_UE: print("\n================================================== Fixed_UE env ==================================================\n")
         else: print("\n================================================== Moving_UE env ==================================================\n")
         # 設定圖片 / log 路徑
         algo_name = 'GenDAC'
-        exp_name = exps[i]
+        exp_name = exps[d]
 
         log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
@@ -308,8 +303,8 @@ for step in steps:
         action_scale_factor = 1.0
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = step
-        else: denoise_step = 3
+        if fixed_UE: denoise_step = 3
+        else: denoise_step = 7
         actor_lr = 3e-4
         critic_lr = 1e-3
         weight_decay_actor = 1e-4
@@ -329,7 +324,7 @@ for step in steps:
         tau = 0.005
         safe_margin = 0.99
         with_action_penalty = False
-        initial_lambda = 0.01
+        initial_lambda = 0.5
 
         # record training parameters in tensorboard
         note = '動態調整 max_action (1->4)'
@@ -425,7 +420,7 @@ for step in steps:
         learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
         prefill_steps = 3 * batch_size
         if hard_scenario: dl_mimo = 3  # 原本是 64
-        else: dl_mimo = 16
+        else: dl_mimo = dl_mimo
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario, schedu_method= 'round_robin_reuse_rem')
         else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
@@ -575,15 +570,15 @@ for step in steps:
             # # 2. D2AC_opt.py 中有 max_action 屬性
             # d2ac_opt.max_action = current_max_action
 
-            # calculate the current lambda
-            # current_lambda = get_lambda(
-            #     current_step= frame,
-            #     start_step= batch_size * 3,
-            #     end_step= 6000,
-            #     start_lambda= initial_lambda,
-            #     end_lambda= 0.001
-            # )
-            current_lambda = initial_lambda
+            # calculate the current lambda : 0.5~0.001
+            current_lambda = get_lambda(
+                current_step= frame,
+                start_step= batch_size * 3,
+                end_step= 6000,
+                start_lambda= initial_lambda,
+                end_lambda= 0.001
+            )
+            # current_lambda = initial_lambda
             
             # modify lambda in created instances
             d2ac_opt.recon_param = current_lambda

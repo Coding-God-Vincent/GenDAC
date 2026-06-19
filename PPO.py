@@ -21,6 +21,7 @@ import math
 fixed_or_not = [False]
 exps = ['exp29']
 seeds = [124]
+using_tanh = False
 
 hard_scenario = False
 
@@ -227,8 +228,9 @@ for fixed in fixed_or_not:
         clip_epsilon = 0.2  # PPO 修正項的上下限所用到的 epsilon
         entropy_coef = 0.0001  # 鼓勵探索的比重
         lr = 1e-3  
-        ACTION_SCALE = 3.0  # 因為 PPO 的輸出會經過一個 tanh，為了讓 PPO 做出較極端的策略，故乘上一個 5 之後再進入 Softmax
-        # REWARD_SCALE = 5.0
+        if using_tanh: ACTION_SCALE = 3.0
+        else: ACTION_SCALE = 1.0
+        
         state_dim = len(ser_cat)
         action_dim = len(ser_cat)
 
@@ -281,8 +283,9 @@ for fixed in fixed_or_not:
             # action_tanh : torch.tensor with shape (action_dim), no grad
             # log_prob : float
             # value : float
-            action_tanh, log_prob, value = Ppoopt.rollout(state= state)
-            action_scaled = action_tanh * ACTION_SCALE
+            if using_tanh: action_logits, log_prob, value = Ppoopt.rollout(state= state)
+            else: action_logits, log_prob, value = Ppoopt.rollout_no_tanh(state= state)
+            action_scaled = action_logits * ACTION_SCALE
             action = F.softmax(action_scaled, dim= 0) * total_band
             env.band_ser_cat = action.numpy()
             # lower layer
@@ -307,7 +310,7 @@ for fixed in fixed_or_not:
             next_state = state_preprocessing(observation_bits)
             Buffer.store(
                 state= state,
-                action= action_tanh,
+                action= action_logits,
                 log_prob= log_prob,
                 reward= reward[0],
                 done= False,

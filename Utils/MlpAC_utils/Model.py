@@ -52,7 +52,7 @@ class GaussianActor(nn.Module):
             # 這三維是三個獨立的機率分布，故其聯合 Entropy 可以直接用乘的，而這邊是 log 所以用加的
             log_prob = log_prob.sum(dim= -1, keepdim= True)
         else: log_prob = None
-        return action, log_prob
+        return logits, log_prob
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

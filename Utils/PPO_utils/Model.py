@@ -69,6 +69,17 @@ class Actor(nn.Module):
         # 相加是因為這邊要聯合動作機率的 log_prob，三個動作的分布互相獨立，因此聯合動作機率要相乘，又因為取 log，所以變相加
         new_log_prob = (original_log_prob - correction).sum(dim= 1, keepdim= True)  # shape (batch_size, 1)
         return action_tanh, new_log_prob
+    
+    # state : shape (batch_size, state_dim)
+    # raw_action : shape (batch_size, action_dim)
+    # new_log_prob : shape (batch_size, 1)
+    def sample_action_no_tanh(self, state):
+        mean, std = self.forward(state=state)
+        dist = torch.distributions.Normal(loc= mean, scale= std)
+        raw_action = dist.rsample()  # shape (batch_size, action_dim)
+        new_log_prob = dist.log_prob(raw_action).sum(dim= 1, keepdim= True)
+
+        return raw_action, new_log_prob
 
     
     '''用在更新時，我們要算出當前策略的 Log_prob & Entropy : 
@@ -95,6 +106,17 @@ class Actor(nn.Module):
         current_log_prob = (current_log_prob - correction).sum(dim= 1, keepdim= True)  # shape (batch_size, 1)
         # 計算 Entropy 當作 loss 避免過早收斂到局部最佳
         entropy = dist.entropy().sum(dim= 1, keepdim= True)  # shape (batch_size, 1)
+        return current_log_prob, entropy
+    
+    # state : shape (batch_size, state_dim)
+    # action : 這是舊策略做的 action，會用在取出該 action 在當前策略的 log_probs。shape (batch_size, action_dim)
+    # current_log_prob : current_prob(a_t|s_t), shape (batch_size, 1)
+    # entropy : 當前策略的 Entropy, shape (batch_size, 1)
+    def evaluate_no_tanh(self, state, action):
+        mean, std = self.forward(state=state)
+        dist = torch.distributions.Normal(loc= mean, scale= std)
+        current_log_prob = dist.log_prob(action).sum(dim=1, keepdim=True)  # shape (batch_size, 1)
+        entropy = dist.entropy().sum(dim=1, keepdim=True)  # shape (batch_size, 1)
         return current_log_prob, entropy
         
         

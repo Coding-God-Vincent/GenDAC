@@ -44,6 +44,19 @@ class PPOopt:
             # value : shape (1, 1)
             value = self.critic(state= state)
         return action_tanh.detach().cpu()[0], log_prob[0, 0].cpu(), value[0].item()
+    
+    
+    # state : np.array with shape (state_dim)
+    # raw_action : torch.tensor with shape (action_dim)
+    # log_prob : torch.tensor with shape ()
+    # value : float
+    def rollout_no_tanh(self, state):
+        # (1, state_dim)
+        state = torch.from_numpy(state).to(dtype= torch.float32, device=self.device).unsqueeze(dim= 0)
+        with torch.no_grad():
+            raw_action, log_prob = self.actor.sample_action_no_tanh(state= state)
+            value = self.critic(state= state)
+        return raw_action.detach().cpu()[0], log_prob[0, 0].cpu(), value[0].item()
 
     
     # last_value : if a trajectory is from timestep 0~T then the last_value = V(s_{T+1}), float
@@ -104,5 +117,67 @@ class PPOopt:
             total_entropy_loss += entropy_loss.item()
         
         # 回傳平均的 actor, critic, entropy_loss
+        steps = self.epochs * (len(buffer.states) // batch_size)
+        return total_actor_loss / steps, total_critic_loss / steps, total_entropy_loss / steps
+    
+    # last_value : if a trajectory is from timestep 0~T then the last_value = V(s_{T+1}), float
+    def update_no_tanh(self, buffer, last_value, batch_size):
+        total_actor_loss, total_critic_loss, total_entropy_loss = 0, 0, 0
+
+        returns, advantages = buffer.compute_GAE(
+            last_value= last_value,
+            gamma= self.gamma,
+            gae_lambda= self.gae_lambda
+        )
+
+        for _ in range(self.epochs):
+            data_generator = buffer.get_batch(
+                returns= returns,
+                advantages= advantages,
+                batch_size= batch_size
+            )
+
+            for state_batch, action_batch, old_log_probs_batch, return_batch, adv_batch in data_generator:
+                current_log_prob, entropy = self.actor.evaluate_no_tanh(
+                    state= state_batch,
+                    action= action_batch
+                )
+
+                value_pred = self.critic(state= state_batch)
+
+                ratio = torch.exp(current_log_prob.squeeze(dim= 1) - old_log_probs_batch)
+
+                actor_loss = -torch.min(
+                    ratio * adv_batch,
+                    torch.clamp(
+                        input=ratio,
+                        min=1 - self.clip_epsilon,
+                        max=1 + self.clip_epsilon
+                    ) * adv_batch
+                ).mean()
+
+                critic_loss = F.mse_loss(
+                    input=value_pred.squeeze(dim=1),
+                    target=return_batch
+                )
+
+                entropy_loss = -entropy.mean()
+
+                total_loss = actor_loss + critic_loss + self.entropy_coef * entropy_loss
+
+                self.actor_optim.zero_grad()
+                self.critic_optim.zero_grad()
+                total_loss.backward()
+
+                torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=0.5)
+                torch.nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=0.5)
+
+                self.actor_optim.step()
+                self.critic_optim.step()
+
+            total_actor_loss += actor_loss.item()
+            total_critic_loss += critic_loss.item()
+            total_entropy_loss += entropy_loss.item()
+
         steps = self.epochs * (len(buffer.states) // batch_size)
         return total_actor_loss / steps, total_critic_loss / steps, total_entropy_loss / steps
