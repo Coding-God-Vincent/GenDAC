@@ -277,7 +277,7 @@ for fixed in fixed_or_not:
             print(f"\n\n******Episode {frame} :")
             # ACTION_SCALE = min(1.0, 1.0 + (frame / 5000.0) * 2.0)
             if using_tanh: action_logit = Sacopt.select_action(state= state)  # tensor (cpu) with shape (3)
-            else: action_logit = Sacopt.select_action(state= state)
+            else: action_logit = Sacopt.select_action_no_tanh(state= state)
             action_scaled = action_logit * ACTION_SCALE
             action = F.softmax(action_scaled, dim= 0) * total_band  # tensor (cpu) with shape (3)
             env.band_ser_cat = action.numpy()  # apply action to the environment
