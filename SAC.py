@@ -27,6 +27,7 @@ exps_moving = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
 seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [True, False]
 hard_scenario = False
+using_tanh = False
 
 for fixed in fixed_or_not:
 
@@ -218,7 +219,7 @@ for fixed in fixed_or_not:
         else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = hard_scenario) 
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = hard_scenario) 
         else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -229,7 +230,7 @@ for fixed in fixed_or_not:
         tau = 0.005  # soft update params
         lr = 3e-4  # learning rate of actor & critic
         alpha_lr = 3e-4  # learning rate of alpha (used in controlling the impact of the Entropy)
-        ACTION_SCALE = 3.0
+        ACTION_SCALE = 1.0
         state_dim = len(ser_cat)
         action_dim = len(ser_cat)
 
@@ -275,8 +276,9 @@ for fixed in fixed_or_not:
         for frame in tqdm(range(1, total_timesteps+1)):
             print(f"\n\n******Episode {frame} :")
             # ACTION_SCALE = min(1.0, 1.0 + (frame / 5000.0) * 2.0)
-            action_tanh = Sacopt.select_action(state= state)  # tensor (cpu) with shape (3)
-            action_scaled = action_tanh * ACTION_SCALE  # tensor (cpu) with shape (3)
+            if using_tanh: action_logit = Sacopt.select_action(state= state)  # tensor (cpu) with shape (3)
+            else: action_logit = Sacopt.select_action(state= state)
+            action_scaled = action_logit * ACTION_SCALE
             action = F.softmax(action_scaled, dim= 0) * total_band  # tensor (cpu) with shape (3)
             env.band_ser_cat = action.numpy()  # apply action to the environment
             # lower layer
@@ -299,10 +301,14 @@ for fixed in fixed_or_not:
 
             observation_packets, observation_bits = env.get_state()  
             next_state = state_preprocessing(observation_bits)
-            Buffer.store_exp(state= state, action= action_tanh, reward= reward[0], next_state= next_state)
+            
+            Buffer.store_exp(state= state, action= action_logit, reward= reward[0], next_state= next_state)
             # update Models
             if len(Buffer) > batch_size * 3:
-                critic_loss, actor_loss, alpha_loss, alpha = Sacopt.update(buffer= Buffer, batch_size= batch_size)
+                if using_tanh:
+                    critic_loss, actor_loss, alpha_loss, alpha = Sacopt.update(buffer= Buffer, batch_size= batch_size)
+                else:
+                    critic_loss, actor_loss, alpha_loss, alpha = Sacopt.update_no_tanh(buffer= Buffer, batch_size= batch_size)
                 loss = {
                     'actor_loss' : actor_loss,
                     'critic_loss' : critic_loss,

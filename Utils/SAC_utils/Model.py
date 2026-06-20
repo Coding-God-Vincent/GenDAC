@@ -58,6 +58,19 @@ class Actor(nn.Module):
         return actions, new_log_probs
 
 
+    def sample_action_no_tanh(self, state):
+        # mean, std : (batch_size, action_dim), (batch_size, action_dim)
+        mean, std = self.forward(state= state)
+        # 建立高斯分布
+        dists = torch.distributions.Normal(loc=mean, scale=std)
+        # 直接從高斯分布抽 raw action，不經過 tanh
+        raw_actions = dists.rsample()  # shape (batch_size, action_dim)
+        # 因為沒有 tanh transformation，所以不需要 tanh correction
+        # shape (batch_size, 1)
+        new_log_probs = dists.log_prob(raw_actions).sum(dim= 1, keepdim=True)
+
+        return raw_actions, new_log_probs
+
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''SAC Critic'''

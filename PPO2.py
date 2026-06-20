@@ -15,7 +15,7 @@ import math
 
 
 
-fixed_or_not = [True]
+fixed_or_not = [False]
 exps_fixed = ['exp31', 'exp32', 'exp33', 'exp34', 'exp35']
 exps_moving = ['exp29', 'exp30', 'exp31', 'exp32', 'exp33']
 seeds = [124, 125, 126, 127, 128]

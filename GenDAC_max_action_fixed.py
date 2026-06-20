@@ -57,7 +57,7 @@ def get_dynamic_max_action(step, total_steps, qoe_slack, current_success, curren
     
     # return success_streak, current_max_action
 
-    return 3
+    return 2
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # decay the exploration rate in cosin. It's used when exploration_rate_decay is True
@@ -245,26 +245,24 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 # hyperparameters
 fixed_UE = True
 
-steps = [3, 1, 5, 7]
+max_actions = [1, 2]
+action_scales = [3.0, 1.5]
 
 seeds = [124, 125, 126, 127, 128]
 
-exps_1 = ['exp310', 'exp311', 'exp312', 'exp313', 'exp314']
-exps_3 = ['exp315', 'exp316', 'exp317', 'exp318', 'exp319']
-exps_5 = ['exp320', 'exp321', 'exp322', 'exp323', 'exp324']
-exps_7 = ['exp325', 'exp326', 'exp327', 'exp328', 'exp329']
+exps_1 = ['exp335', 'exp336', 'exp337', 'exp338', 'exp339']
+exps_2 = ['exp340', 'exp341', 'exp342', 'exp343', 'exp344']
+
 
 
 hard_scenario = False
 DDIM = False
 
 
-for step in steps:
+for m, ma in enumerate(max_actions):
     
-    if step == 1: exps = exps_1
-    elif step == 3: exps = exps_3
-    elif step == 5: exps = exps_5
-    else: exps = exps_7
+    if ma == 1: exps = exps_1
+    else: exps = exps_2
 
     for i in range(len(seeds)):
         
@@ -304,14 +302,14 @@ for step in steps:
         action_dim = len(ser_cat)
 
         # training parameters
-        initial_max_action = 3  
+        initial_max_action = ma
         logit_low = -0.5
         logit_high = 0.5
         scale = True  # scale the action or not
-        action_scale_factor = 1.0
+        action_scale_factor = action_scales[m]
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = step
+        if fixed_UE: denoise_step = 3
         else: denoise_step = 7
         actor_lr = 3e-4
         critic_lr = 1e-3
@@ -563,13 +561,15 @@ for step in steps:
 
             # Curicculum Learning : Adjust max_action dynamically
             # calculate the current max_action
-            current_max_action = get_dynamic_max_action(
-                step= frame, 
-                total_steps= total_timesteps, 
-                qoe_slack= qoe_slack, 
-                current_success= current_success, 
-                current_max_action= current_max_action
-            )
+            # current_max_action = get_dynamic_max_action(
+            #     step= frame, 
+            #     total_steps= total_timesteps, 
+            #     qoe_slack= qoe_slack, 
+            #     current_success= current_success, 
+            #     current_max_action= current_max_action
+            # )
+            current_max_action = initial_max_action
+            
             # modify max action in created instances
             # # 1. diffusion.py 中有 max_action 屬性
             # actor.max_action = current_max_action

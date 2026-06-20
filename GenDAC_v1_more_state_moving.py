@@ -466,8 +466,8 @@ for d, dl_mimo in enumerate(dl_mimos):
         if hard_scenario: dl_mimo = 3  # 原本是 64
         else: dl_mimo = dl_mimo
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario, schedu_method= 'round_robin_reuse_rem')
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
+        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
         env.countReset()  # reset 所有計數器
         if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
         env.activity()  # 所有 UE 開始根據其網路切片產生封包

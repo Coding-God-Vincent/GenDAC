@@ -19,9 +19,9 @@ import torch
 '''
 
 seeds = [124, 125, 126, 127, 128]
-exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
+exps_fixed = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
 exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
-fixed_or_not = [True, False]
+fixed_or_not = [True]
 hard_scenario = False
 
 for fixed in fixed_or_not:
@@ -216,7 +216,7 @@ for fixed in fixed_or_not:
         else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300  # 原本 LSTM-A2C 那邊設 1200 應該是真的沒有 buffer reset，因為 1200 的話要跑超久。這邊為了加速我把人數訂為跟 GANDDQN 那邊一樣 100 人
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
         else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
 
         '''GPU'''

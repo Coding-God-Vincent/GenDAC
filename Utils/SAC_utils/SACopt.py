@@ -53,7 +53,18 @@ class SAC_opt:
         with torch.no_grad():
             # action : tanh(logits by actor), shape (1, action_dim)
             action, _ = self.actor.sample_action(state= state)  
-        return action.cpu()[0]  # tensor with shape (3)
+        return action.cpu()[0]  # tensor with shape (action_dim)
+    
+    
+    def select_action_no_tanh(self, state):
+        # shape (1, state_dim)
+        state = torch.from_numpy(state).to(
+            dtype=torch.float32,
+            device=self.device
+        ).unsqueeze(dim=0)
+        with torch.no_grad():
+            raw_action, _ = self.actor.sample_action_no_tanh(state=state)
+        return raw_action.cpu()[0]  # shape (action_dim)
 
     
     '''Update'''
@@ -110,6 +121,65 @@ class SAC_opt:
         alpha_loss.backward()
         self.alpha_optim.step()
         # update currently used alpha
+        self.alpha = self.log_alpha.exp().item()
+
+        return critic_loss.item(), actor_loss.item(), alpha_loss.item(), self.alpha
+    
+    
+    def update_no_tanh(self, buffer, batch_size):
+        state, action, reward, next_state = buffer.sample(batch_size)
+        # --------------------------------------------------
+        # Update Critic
+        # --------------------------------------------------
+        with torch.no_grad():
+            # no_tanh 版本：next_action 是 raw action logits
+            next_action, next_log_prob = self.actor.sample_action_no_tanh(next_state)
+            next_Q_values = self.target_critic.q_min(
+                state=next_state,
+                action=next_action
+            )
+            target_Q = reward + self.gamma * (next_Q_values - self.alpha * next_log_prob)
+        current_Q1_values, current_Q2_values = self.critic(
+            state=state,
+            action=action
+        )
+        critic_loss = F.mse_loss(current_Q1_values, target_Q) + F.mse_loss(current_Q2_values, target_Q)
+        self.critic_optim.zero_grad()
+        critic_loss.backward()
+        self.critic_optim.step()
+
+        # --------------------------------------------------
+        # Update Actor
+        # --------------------------------------------------
+        current_action, current_log_prob = self.actor.sample_action_no_tanh(state)
+        Q_values = self.critic.q_min(
+            state=state,
+            action=current_action
+        )
+        actor_loss = (self.alpha * current_log_prob - Q_values).mean()
+        self.actor_optim.zero_grad()
+        actor_loss.backward()
+        self.actor_optim.step()
+
+        # --------------------------------------------------
+        # Soft Update Target Critic
+        # --------------------------------------------------
+        for param, target_param in zip(self.critic.parameters(), self.target_critic.parameters()):
+            target_param.data.copy_(
+                self.tau * param.data + (1 - self.tau) * target_param.data
+            )
+
+        # --------------------------------------------------
+        # Update Alpha
+        # --------------------------------------------------
+        alpha_loss = -(
+            self.log_alpha * (current_log_prob + self.target_entropy).detach()
+        ).mean()
+
+        self.alpha_optim.zero_grad()
+        alpha_loss.backward()
+        self.alpha_optim.step()
+
         self.alpha = self.log_alpha.exp().item()
 
         return critic_loss.item(), actor_loss.item(), alpha_loss.item(), self.alpha

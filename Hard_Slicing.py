@@ -9,11 +9,11 @@ from tqdm.auto import tqdm
 from Utils.seed import set_seed
 
 
-exps_fixed = ['exp9', 'exp10', 'exp11', 'exp12', 'exp13']
-exps_moving = ['exp8', 'exp9', 'exp10', 'exp11', 'exp12']
+exps_fixed = ['exp14', 'exp15', 'exp16', 'exp17', 'exp18']
+exps_moving = ['exp13', 'exp14', 'exp15', 'exp16', 'exp17']
 seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [False, True]
-hard_scenario = True
+fixed_or_not = [False]
+hard_scenario = False
 
 for fixed in fixed_or_not:
 
@@ -65,14 +65,18 @@ for fixed in fixed_or_not:
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
-        total_band = 20  # unit : MHz
+        if hard_scenario: total_band = 20  # unit : MHz
+        else: total_band = 10
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
-        dl_mimo = 3
+        if hard_scenario: dl_mimo = 3
+        else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+        # FixedUE 原論文 ser_prob : 6:6:1
+        # MovingUE 原論文 ser_prob : 1:2:3
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
+        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Recording list'''

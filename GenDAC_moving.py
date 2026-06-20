@@ -245,18 +245,26 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 # hyperparameters
 fixed_UE = False
 
-dl_mimos = [1, 8]
+steps = [7, 1, 3, 5]
 
-seeds = [124]
+seeds = [124, 125, 126, 127, 128]
 
-exps = ['exp371', 'exp372']
+exps_1 = ['exp381', 'exp382', 'exp383', 'exp384', 'exp385']
+exps_3 = ['exp386', 'exp387', 'exp388', 'exp389', 'exp390']
+exps_5 = ['exp391', 'exp392', 'exp393', 'exp394', 'exp395']
+exps_7 = ['exp396', 'exp397', 'exp398', 'exp399', 'exp400']
 
 
 hard_scenario = False
 DDIM = False
 
 
-for d, dl_mimo in enumerate(dl_mimos):
+for step in steps:
+    
+    if step == 1: exps = exps_1
+    elif step == 3: exps = exps_3
+    elif step == 5: exps = exps_5
+    else: exps = exps_7
 
     for i in range(len(seeds)):
         
@@ -266,7 +274,7 @@ for d, dl_mimo in enumerate(dl_mimos):
         else: print("\n================================================== Moving_UE env ==================================================\n")
         # 設定圖片 / log 路徑
         algo_name = 'GenDAC'
-        exp_name = exps[d]
+        exp_name = exps[i]
 
         log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
@@ -303,7 +311,7 @@ for d, dl_mimo in enumerate(dl_mimos):
         action_scale_factor = 1.0
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = 3
+        if fixed_UE: denoise_step = step
         else: denoise_step = 7
         actor_lr = 3e-4
         critic_lr = 1e-3
@@ -420,10 +428,10 @@ for d, dl_mimo in enumerate(dl_mimos):
         learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
         prefill_steps = 3 * batch_size
         if hard_scenario: dl_mimo = 3  # 原本是 64
-        else: dl_mimo = dl_mimo
+        else: dl_mimo = 16
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario, schedu_method= 'round_robin_reuse_rem')
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
+        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
         env.countReset()  # reset 所有計數器
         if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
         env.activity()  # 所有 UE 開始根據其網路切片產生封包
