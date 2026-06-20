@@ -5,7 +5,7 @@ from torch.distributions import Normal
 '''Actor (by MLP)'''
 '''這邊加入 Entropy 的原因是因為 GenDAC 多步就有 Entropy 的意味，這邊若沒有的話很快會陷入局部最優'''
 class GaussianActor(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, using_tanh= False):
         super().__init__()
         self.middle = nn.Sequential(
             nn.Linear(in_features= state_dim, out_features= 256),
@@ -18,8 +18,9 @@ class GaussianActor(nn.Module):
         # 只要是輸出 Std 都會用這招
         # 為了 Std 恆正，會轉成 log，使用時再用 exp 取出 (exp 取出的值恆正)
         # 為了避免數值爆炸或消失，將 log std 限縮在 -2 ~ 20 之間 (Magic No)
-        self.LOG_STD_MAX = -2
-        self.LOG_STD_MIN = 20
+        self.LOG_STD_MAX = 20
+        self.LOG_STD_MIN = -2
+        self.using_tanh = using_tanh
         
     
     # state : shape (batch_size, state_dim)
@@ -41,17 +42,26 @@ class GaussianActor(nn.Module):
         # (Deterministic = False) training : action is sampled by reparameterization
         if deterministic: logits = mean
         else: logits = dist.rsample()
-        # we use clamp to contraint the values in [-1, 1] in GenDAC
-        # so we use tanh here to do the same things
-        action = torch.tanh(logits)
-        # (with_log_prob = True) compute log_prob in order to evaluate Entropy
-        # (with_log_prob = False) return None
-        if with_logprob:
-            # because the action is tanh(u) so the corresponding log_prob must be corrected 
-            log_prob = dist.log_prob(logits) - torch.log(1 - action.pow(2) + 1e-6)
-            # 這三維是三個獨立的機率分布，故其聯合 Entropy 可以直接用乘的，而這邊是 log 所以用加的
-            log_prob = log_prob.sum(dim= -1, keepdim= True)
-        else: log_prob = None
+        
+        if self.using_tanh:
+            # we use clamp to contraint the values in [-1, 1] in GenDAC
+            # so we use tanh here to do the same things
+            action = torch.tanh(logits)
+            # (with_log_prob = True) compute log_prob in order to evaluate Entropy
+            # (with_log_prob = False) return None
+            if with_logprob:
+                # because the action is tanh(u) so the corresponding log_prob must be corrected 
+                log_prob = dist.log_prob(logits) - torch.log(1 - action.pow(2) + 1e-6)
+                # 這三維是三個獨立的機率分布，故其聯合 Entropy 可以直接用乘的，而這邊是 log 所以用加的
+                log_prob = log_prob.sum(dim= -1, keepdim= True)
+            else: log_prob = None
+        else:
+            action = logits
+            if with_logprob:
+                log_prob = dist.log_prob(action).sum(dim=-1, keepdim=True)
+            else:
+                log_prob = None
+            return action, log_prob
         return logits, log_prob
 
 

@@ -18,11 +18,12 @@ from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
 exps_fixed = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
-# exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
+exps_moving = ['exp22', 'exp23', 'exp24', 'exp25', 'exp26']
 seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [True]
 hard_scenario = False
 with_entropy = False
+using_tanh = False
 
 for i in range(len(seeds)):
 
@@ -76,7 +77,7 @@ for i in range(len(seeds)):
         # return : 
         # action_logits, real_action : np.array with shape (action_dim)
         noise_generator = GaussianNoise()
-        def get_actions(state, total_band, model, device, action_scale, exploration_rate, sigma):
+        def get_actions(state, total_band, model, device, action_scale, exploration_rate, sigma, using_tanh= False):
             # shape (1, state_dim)
             state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)
             with torch.no_grad():
@@ -85,7 +86,7 @@ for i in range(len(seeds)):
             if np.random.rand() < exploration_rate:
                 noise = to_torch(noise_generator.generate(action_logit.shape, sigma= sigma), dtype= torch.float32, device= device)
                 action_logit = action_logit + noise
-                action_logit = torch.tanh(action_logit)
+                if using_tanh: action_logit = torch.tanh(action_logit)
             scaled_action_logit = action_logit * action_scale
             # shape (action_dim)
             proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
@@ -174,7 +175,7 @@ for i in range(len(seeds)):
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # initialize model & optimizer
-        actor = GaussianActor(state_dim= state_dim, action_dim= action_dim).to(device)
+        actor = GaussianActor(state_dim= state_dim, action_dim= action_dim, using_tanh= using_tanh).to(device)
         actor_optim = torch.optim.Adam(actor.parameters(), lr= actor_lr)
         critic = DoubleCritic(state_dim= state_dim, action_dim= action_dim).to(device)
         critic_optim = torch.optim.Adam(critic.parameters(), lr= critic_lr)
@@ -231,7 +232,7 @@ for i in range(len(seeds)):
             print(f"\n\n******Episode {frame} :")
             state = state_preprocessing(state= observation_bits)  
 
-            action_logit, real_action = get_actions(state= state, total_band= total_band, model= actor, device= device, action_scale= action_scale, exploration_rate= exploration_rate, sigma= sigma)
+            action_logit, real_action = get_actions(state= state, total_band= total_band, model= actor, device= device, action_scale= action_scale, exploration_rate= exploration_rate, sigma= sigma, using_tanh= using_tanh)
             
             env.band_ser_cat = real_action
             
