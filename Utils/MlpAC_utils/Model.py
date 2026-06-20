@@ -18,8 +18,8 @@ class GaussianActor(nn.Module):
         # 只要是輸出 Std 都會用這招
         # 為了 Std 恆正，會轉成 log，使用時再用 exp 取出 (exp 取出的值恆正)
         # 為了避免數值爆炸或消失，將 log std 限縮在 -2 ~ 20 之間 (Magic No)
-        self.LOG_STD_MAX = 20
-        self.LOG_STD_MIN = -2
+        self.LOG_STD_MAX = 2
+        self.LOG_STD_MIN = -20
         self.using_tanh = using_tanh
         
     
