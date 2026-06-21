@@ -665,7 +665,14 @@ class EnvMove(object):
         se_total = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)  # average SE of one timeslot of the system in the current window
         # ee_total = se_total/10**(self.BS_tx_power/10)
         self.tx_pkt_no[np.where(self.tx_pkt_no == 0)] += 1
-        qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)  # qoe of each NS in the current window
+        # qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)  # qoe of each NS in the current window
+        denom = self.tx_pkt_no + self.drop_pkt_no
+        qoe = np.divide(
+            self.succ_tx_pkt_no,
+            denom,
+            out=np.ones_like(self.succ_tx_pkt_no, dtype=float),
+            where=denom != 0
+        )
         qoe = np.clip(qoe, 0.0, 1.0)
         return qoe, se_total
 

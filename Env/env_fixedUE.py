@@ -734,10 +734,17 @@ class cellularEnv(object):
         # if (self.learning_windows / self.time_subframe - self.idle_frame) == 0: se = 0.0
         # else: se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)
         # ee_total = se_total/10**(self.BS_tx_power/10)   
-        se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe)  # 維持原論文的設定，不考慮 idle frame
+        se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)  # 維持原論文的設定，不考慮 idle frame，但為了維持兩個環境的一致性，這邊改為考慮 idle frame
         
         # 2. 各網路切片整個 Learning Window 滿足 SLA 傳送成功的封包總數 / 各網路切片整個 Learning Window 的封包總數 (含被 drop 掉的 packet)
         qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)
+        denom = self.tx_pkt_no + self.drop_pkt_no
+        qoe = np.divide(
+            self.succ_tx_pkt_no,
+            denom,
+            out=np.ones_like(self.succ_tx_pkt_no, dtype=float),
+            where=denom != 0
+        )
         qoe = np.clip(qoe, 0., 1.)  # 有些 packets 上一個 buffer 沒有傳完留到下一個 buffer 才傳掉，effort 會被記在下一個 window 中
 
         
