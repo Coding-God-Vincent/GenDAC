@@ -804,19 +804,20 @@ class EnvMove(object):
 # buffer -> UE_buffer[:, ue_id] : packet size of each of the 5 packets in the queue corresponding to the UE with ue_id
 # rate -> data transmissio rate of UE with ue_id
 def bufferUpdate(buffer, rate, time_subframe):
-    transmitted_packets = 0
     transmitted_packets_indices = []
-    bSize = buffer.size
-    for i in range(bSize):
-        if buffer[i] >= rate * time_subframe:
-            buffer[i] -= rate * time_subframe
-            rate = 0
+    transmitted_packets = 0
+    remaining_transmit_bits = rate * time_subframe
+
+    for i in range(buffer.size):
+        if buffer[i] > remaining_transmit_bits:
+            buffer[i] -= remaining_transmit_bits
             break
-        else:
-            rate -= buffer[i] / time_subframe
+        elif buffer[i] > 0:
+            remaining_transmit_bits -= buffer[i]
             buffer[i] = 0
             transmitted_packets += 1
             transmitted_packets_indices.append(i)
+
     return buffer, transmitted_packets, transmitted_packets_indices
 
 #=======================================================================================================================================#
