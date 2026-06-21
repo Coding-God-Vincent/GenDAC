@@ -664,7 +664,6 @@ class EnvMove(object):
     def get_reward(self):
         se_total = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)  # average SE of one timeslot of the system in the current window
         # ee_total = se_total/10**(self.BS_tx_power/10)
-        self.tx_pkt_no[np.where(self.tx_pkt_no == 0)] += 1
         # qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)  # qoe of each NS in the current window
         denom = self.tx_pkt_no + self.drop_pkt_no
         qoe = np.divide(
@@ -759,6 +758,10 @@ class EnvMove(object):
         self.urllc_perfect = 0
         self.urllc_tolerable = 0
         self.urllc_fail = 0
+        self.urllc_UE_slot = 0
+        self.volte_UE_slot = 0
+        self.embb_UE_slot = 0
+        self.urllc_violate_packet_size = np.zeros(5)
         # self.UE_buffer = np.zeros(self.UE_buffer.shape)
         # self.UE_buffer_backup = np.zeros(self.UE_buffer.shape)
         # self.UE_latency = np.zeros(self.UE_buffer.shape)

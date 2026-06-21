@@ -145,7 +145,10 @@ class PPOopt:
 
                 value_pred = self.critic(state= state_batch)
 
-                ratio = torch.exp(current_log_prob.squeeze(dim= 1) - old_log_probs_batch)
+                # ratio = torch.exp(current_log_prob.squeeze(dim= 1) - old_log_probs_batch)
+                log_ratio = current_log_prob.squeeze(dim=1) - old_log_probs_batch
+                log_ratio = torch.clamp(log_ratio, min=-20.0, max=20.0)  # 因為沒有 tanh 限制，raw action 本身可以很大，所以加上保護機制
+                ratio = torch.exp(log_ratio)
 
                 actor_loss = -torch.min(
                     ratio * adv_batch,
