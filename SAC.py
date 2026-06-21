@@ -20,6 +20,8 @@ import math
     ex : 假設經過 tanh 之後輸出 : [1, -1, -1] (這已經是最極端的分配的)，那這時候經過 softmax 後會輸出 : [0.787, 0.106, 0.106]
     要解決這個問題最常用的做法就是對 tanh 輸出後的數值最一個放大 : 同乘一個 tau，這邊建議設 5，因為這樣就能夠達到很極端的配置了。
     ex : 假設經過 tanh 之後輸出 : [1, -1, -1] (這已經是最極端的分配的)，乘上 5 之後就變成 [5, -5, -5] 會得到 [0.9999..., 4.5396e-05, 4.5396e-05]
+
+    SAC 也一定要使用 tanh，我試過直接不用 tanh 會出現 bang-bang control 問題。
 '''
 
 exps_fixed = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
@@ -27,7 +29,7 @@ exps_moving = ['exp29', 'exp30', 'exp31', 'exp32', 'exp33']
 seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [True, False]
 hard_scenario = False
-using_tanh = False
+using_tanh = True
 
 for i in range(len(seeds)):
 
@@ -231,7 +233,8 @@ for i in range(len(seeds)):
         tau = 0.005  # soft update params
         lr = 3e-4  # learning rate of actor & critic
         alpha_lr = 3e-4  # learning rate of alpha (used in controlling the impact of the Entropy)
-        ACTION_SCALE = 1.0
+        if using_tanh: ACTION_SCALE = 3.0
+        else: ACTION_SCALE = 1.0
         state_dim = len(ser_cat)
         action_dim = len(ser_cat)
 

@@ -45,6 +45,10 @@ class SAC_opt:
         self.alpha = self.log_alpha.exp().item()
     
     
+    def center_logits(self, action):
+        return action - action.mean(dim= -1, keepdim= True)
+
+    
     '''Rollout'''
     # state : np.array with shape (3)
     # output : np.array with shape (3)
@@ -53,6 +57,7 @@ class SAC_opt:
         with torch.no_grad():
             # action : tanh(logits by actor), shape (1, action_dim)
             action, _ = self.actor.sample_action(state= state)  
+            action = self.center_logits(action= action)
         return action.cpu()[0]  # tensor with shape (action_dim)
     
     
@@ -64,6 +69,7 @@ class SAC_opt:
         ).unsqueeze(dim=0)
         with torch.no_grad():
             raw_action, _ = self.actor.sample_action_no_tanh(state=state)
+            raw_action = self.center_logits(action= raw_action)
         return raw_action.cpu()[0]  # shape (action_dim)
 
     
@@ -81,6 +87,7 @@ class SAC_opt:
             # next_action : shape (batch_size, action_dim)
             # next_log_prob : future entropy (entropy of \pi(a_(t+1)|s_(t+1))), shape (batch_size, 1)
             next_action, next_log_prob = self.actor.sample_action(next_state)
+            next_action = self.center_logits(action= next_action)
             # Q_values : shape (batch_size, 1)
             next_Q_values = self.target_critic.q_min(state= next_state, action= next_action)
             target_Q = reward + self.gamma * (next_Q_values - self.alpha * next_log_prob)
@@ -97,6 +104,7 @@ class SAC_opt:
         # current_action : shape (batch_size, action_dim)
         # current_log_prob : shape (batch_size, 1)
         current_action, current_log_prob = self.actor.sample_action(state)
+        current_action = self.center_logits(action= current_action)
         Q_values = self.critic.q_min(state= state, action= current_action)
         actor_loss = (self.alpha * current_log_prob - Q_values).mean()
         # Update Actor Network
@@ -134,6 +142,7 @@ class SAC_opt:
         with torch.no_grad():
             # no_tanh 版本：next_action 是 raw action logits
             next_action, next_log_prob = self.actor.sample_action_no_tanh(next_state)
+            next_action = self.center_logits(action= next_action)
             next_Q_values = self.target_critic.q_min(
                 state=next_state,
                 action=next_action
@@ -152,6 +161,7 @@ class SAC_opt:
         # Update Actor
         # --------------------------------------------------
         current_action, current_log_prob = self.actor.sample_action_no_tanh(state)
+        current_action = self.center_logits(action= current_action)
         Q_values = self.critic.q_min(
             state=state,
             action=current_action
