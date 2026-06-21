@@ -396,7 +396,7 @@ class EnvMove(object):
         rate = np.zeros(self.UE_max_no)  # unit : bit/s
         rate[UE_index] = self.UE_band[UE_index] * np.log2(1 + rx_power[UE_index] / (10 ** (self.noise_PSD / 10) * self.UE_band[UE_index])) * self.dl_mimo
         # update the latency of each non-zero packet (add 0.5ms)
-        self.UE_latency[np.where(self.UE_buffer != 0)] += self.time_subframe
+        self.UE_latency[np.where((self.UE_buffer != 0) & (self.UE_cell == 1))] += self.time_subframe
         # do the packet transmission 
         for ue_id in UE_index[0]:
             self.UE_buffer[:, ue_id], transmitted_packets, transmitted_packets_indices = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)
