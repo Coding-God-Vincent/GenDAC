@@ -449,7 +449,7 @@ class EnvMove(object):
                     else: self.UE_readtime[ue_index] = np.random.exponential(180 * 10 ** -3, [1, ue_index_Size])  # avg. time = 10ms
 
         # extract the UEs with readtimes lower than 0
-        UE_index_readtime = np.where(self.UE_readtime <= 0)[0].tolist()
+        UE_index_readtime = np.where((self.UE_readtime <= 0) & (self.UE_cell == 1))[0].tolist()
         
         # Generate packet to the queue of each user according to the readtime 
         # consider 1 UE at a time
@@ -662,7 +662,11 @@ class EnvMove(object):
     #=======================================================================================================================================#
     # return the qoe of each NS & average system SE of 1 timeslot in the current window 
     def get_reward(self):
-        se_total = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)  # average SE of one timeslot of the system in the current window
+
+        valid_slots = self.learning_windows / self.time_subframe - self.idle_frame
+        if valid_slots <= 0: se_total = np.zeros(1)
+        else: se_total = self.sys_se_per_frame / valid_slots  # average SE of one timeslot of the system in the current window
+        
         # ee_total = se_total/10**(self.BS_tx_power/10)
         # qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)  # qoe of each NS in the current window
         denom = self.tx_pkt_no + self.drop_pkt_no

@@ -734,7 +734,9 @@ class cellularEnv(object):
         # if (self.learning_windows / self.time_subframe - self.idle_frame) == 0: se = 0.0
         # else: se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)
         # ee_total = se_total/10**(self.BS_tx_power/10)   
-        se = self.sys_se_per_frame / (self.learning_windows / self.time_subframe - self.idle_frame)  # 維持原論文的設定，不考慮 idle frame，但為了維持兩個環境的一致性，這邊改為考慮 idle frame
+        valid_slots = (self.learning_windows / self.time_subframe - self.idle_frame)
+        if valid_slots <= 0: se = np.zeros(1)
+        else: se = self.sys_se_per_frame / valid_slots  # 維持原論文的設定，不考慮 idle frame，但為了維持兩個環境的一致性，這邊改為考慮 idle frame
         
         # 2. 各網路切片整個 Learning Window 滿足 SLA 傳送成功的封包總數 / 各網路切片整個 Learning Window 的封包總數 (含被 drop 掉的 packet)
         # qoe = self.succ_tx_pkt_no / (self.tx_pkt_no + self.drop_pkt_no)
@@ -758,7 +760,7 @@ class cellularEnv(object):
         
         # (觀察用) 當前 Learning window，各網路切片平均一個 timeslot 的 SE
         # individual_se = self.individual_se / (self.learning_windows / self.time_subframe - self.idle_frame)
-        individual_se = self.individual_se / (self.learning_windows / self.time_subframe - idle_frame)  # 維持原論文的設定 (不考慮 idle_frame)
+        individual_se = self.individual_se / (self.learning_windows / self.time_subframe - self.idle_frame)  # 維持原論文的設定 (不考慮 idle_frame)
 
         return individual_se, self.urllc_perfect, self.urllc_tolerable, self.urllc_fail, self.idle_frame
 
