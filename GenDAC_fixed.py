@@ -245,14 +245,15 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 # hyperparameters
 fixed_UE = True
 
-steps = [3, 1, 5, 7]
+steps = [5, 7]
 
-seeds = [124, 125, 126, 127, 128]
+seeds_5 = [127]
+seeds_7 = [125, 126, 127, 128]
 
 exps_1 = ['exp310', 'exp311', 'exp312', 'exp313', 'exp314']
 exps_3 = ['exp315', 'exp316', 'exp317', 'exp318', 'exp319']
-exps_5 = ['exp320', 'exp321', 'exp322', 'exp323', 'exp324']
-exps_7 = ['exp325', 'exp326', 'exp327', 'exp328', 'exp329']
+exps_5 = ['exp323']
+exps_7 = ['exp326', 'exp327', 'exp328', 'exp329']
 
 
 hard_scenario = False
@@ -263,8 +264,12 @@ for step in steps:
     
     if step == 1: exps = exps_1
     elif step == 3: exps = exps_3
-    elif step == 5: exps = exps_5
-    else: exps = exps_7
+    elif step == 5: 
+        exps = exps_5
+        seeds = seeds_5
+    else: 
+        exps = exps_7
+        seeds = seeds_7
 
     for i in range(len(seeds)):
         

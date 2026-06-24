@@ -245,31 +245,24 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 # hyperparameters
 fixed_UE = False
 
-steps = [5]
+max_actions = [1, 2]
+action_scales = [3.0, 1.5]
 
+seeds = [124, 125, 126, 127, 128]
 
-seeds = [128]
+exps_1 = ['exp401', 'exp402', 'exp403', 'exp404', 'exp405']
+exps_2 = ['exp406', 'exp407', 'exp408', 'exp409', 'exp410']
 
-exps_1 = ['exp381', 'exp382', 'exp383', 'exp384', 'exp385']
-exps_3 = ['exp387', 'exp388', 'exp389', 'exp390']
-exps_5 = ['exp395']
-exps_7 = ['exp396', 'exp397', 'exp398', 'exp399', 'exp400']
 
 
 hard_scenario = False
 DDIM = False
 
 
-for step in steps:
+for m, ma in enumerate(max_actions):
     
-    if step == 1: exps = exps_1
-    elif step == 3: 
-        exps = exps_3
-        seeds = seeds_3
-    elif step == 5: 
-        exps = exps_5
-        seeds = seeds
-    else: exps = exps_7
+    if ma == 1: exps = exps_1
+    else: exps = exps_2
 
     for i in range(len(seeds)):
         
@@ -309,14 +302,14 @@ for step in steps:
         action_dim = len(ser_cat)
 
         # training parameters
-        initial_max_action = 3  
+        initial_max_action = ma
         logit_low = -0.5
         logit_high = 0.5
         scale = True  # scale the action or not
-        action_scale_factor = 1.0
+        action_scale_factor = action_scales[m]
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = step
+        if fixed_UE: denoise_step = 3
         else: denoise_step = 7
         actor_lr = 3e-4
         critic_lr = 1e-3
@@ -568,13 +561,15 @@ for step in steps:
 
             # Curicculum Learning : Adjust max_action dynamically
             # calculate the current max_action
-            current_max_action = get_dynamic_max_action(
-                step= frame, 
-                total_steps= total_timesteps, 
-                qoe_slack= qoe_slack, 
-                current_success= current_success, 
-                current_max_action= current_max_action
-            )
+            # current_max_action = get_dynamic_max_action(
+            #     step= frame, 
+            #     total_steps= total_timesteps, 
+            #     qoe_slack= qoe_slack, 
+            #     current_success= current_success, 
+            #     current_max_action= current_max_action
+            # )
+            current_max_action = initial_max_action
+            
             # modify max action in created instances
             # # 1. diffusion.py 中有 max_action 屬性
             # actor.max_action = current_max_action

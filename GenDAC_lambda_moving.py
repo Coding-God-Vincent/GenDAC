@@ -245,31 +245,24 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 # hyperparameters
 fixed_UE = False
 
-steps = [5]
+lambdas = [1, 0.5]
 
 
-seeds = [128]
+seeds = [124, 125, 126, 127, 128]
 
-exps_1 = ['exp381', 'exp382', 'exp383', 'exp384', 'exp385']
-exps_3 = ['exp387', 'exp388', 'exp389', 'exp390']
-exps_5 = ['exp395']
-exps_7 = ['exp396', 'exp397', 'exp398', 'exp399', 'exp400']
+exps_1 = ['exp416', 'exp417', 'exp418', 'exp419', 'exp420']
+exps_05 = ['exp421', 'exp422', 'exp423', 'exp424', 'exp425']
+
 
 
 hard_scenario = False
 DDIM = False
 
 
-for step in steps:
+for lam in lambdas:
     
-    if step == 1: exps = exps_1
-    elif step == 3: 
-        exps = exps_3
-        seeds = seeds_3
-    elif step == 5: 
-        exps = exps_5
-        seeds = seeds
-    else: exps = exps_7
+    if lam == 1: exps = exps_1
+    else: exps = exps_05
 
     for i in range(len(seeds)):
         
@@ -291,6 +284,7 @@ for step in steps:
         # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
         # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp19/tensorboard"
         # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+        
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
         else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
@@ -316,7 +310,7 @@ for step in steps:
         action_scale_factor = 1.0
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = step
+        if fixed_UE: denoise_step = 3
         else: denoise_step = 7
         actor_lr = 3e-4
         critic_lr = 1e-3
@@ -337,7 +331,7 @@ for step in steps:
         tau = 0.005
         safe_margin = 0.99
         with_action_penalty = False
-        initial_lambda = 0.5
+        initial_lambda = lam
 
         # record training parameters in tensorboard
         note = '動態調整 max_action (1->4)'
@@ -584,14 +578,14 @@ for step in steps:
             # d2ac_opt.max_action = current_max_action
 
             # calculate the current lambda : 0.5~0.001
-            current_lambda = get_lambda(
-                current_step= frame,
-                start_step= batch_size * 3,
-                end_step= 6000,
-                start_lambda= initial_lambda,
-                end_lambda= 0.001
-            )
-            # current_lambda = initial_lambda
+            # current_lambda = get_lambda(
+            #     current_step= frame,
+            #     start_step= batch_size * 3,
+            #     end_step= 6000,
+            #     start_lambda= initial_lambda,
+            #     end_lambda= 0.001
+            # )
+            current_lambda = initial_lambda
             
             # modify lambda in created instances
             d2ac_opt.recon_param = current_lambda

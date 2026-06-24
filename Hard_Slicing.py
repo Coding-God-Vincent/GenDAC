@@ -9,10 +9,10 @@ from tqdm.auto import tqdm
 from Utils.seed import set_seed
 
 
-exps_fixed = ['exp14', 'exp15', 'exp16', 'exp17', 'exp18']
+exps_fixed = ['exp19', 'exp20', 'exp21', 'exp22', 'exp23']
 exps_moving = ['exp13', 'exp14', 'exp15', 'exp16', 'exp17']
 seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [False]
+fixed_or_not = [True, False]
 hard_scenario = False
 
 for fixed in fixed_or_not:
@@ -75,7 +75,7 @@ for fixed in fixed_or_not:
         UE_no = 100 if fixed_UE else 300
         # FixedUE 原論文 ser_prob : 6:6:1
         # MovingUE 原論文 ser_prob : 1:2:3
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
+        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
         else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

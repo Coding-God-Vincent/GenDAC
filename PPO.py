@@ -15,7 +15,7 @@ import math
 
 
 
-fixed_or_not = [True]
+fixed_or_not = [True, False]
 exps_fixed = ['exp31', 'exp32', 'exp33', 'exp34', 'exp35']
 exps_moving = ['exp29', 'exp30', 'exp31', 'exp32', 'exp33']
 seeds = [124, 125, 126, 127, 128]
@@ -23,12 +23,13 @@ using_tanh = False
 
 hard_scenario = False
 
-for fixed in fixed_or_not:
-
-    if fixed: exps = exps_fixed
-    else: exps = exps_moving
+for i in range(len(seeds)):
     
-    for i in range(len(seeds)):
+    for fixed in fixed_or_not:
+
+        if fixed: exps = exps_fixed
+        else: exps = exps_moving
+    
         print(f"It's {exps[i]}, seeds {seeds[i]}")
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''設定環境變數'''

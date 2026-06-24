@@ -49,8 +49,8 @@ from pathlib import Path
 
 seeds = [124, 125, 126, 127, 128]
 exps_fixed = ['exp35', 'exp36', 'exp37', 'exp38', 'exp39']
-exps_moving = ['exp25', 'exp26', 'exp27', 'exp28', 'exp29']
-fixed_or_not = [True]
+exps_moving = ['exp30', 'exp31', 'exp32', 'exp33', 'exp34']
+fixed_or_not = [True, False]
 hard_scenario = False
 
 for fixed in fixed_or_not:

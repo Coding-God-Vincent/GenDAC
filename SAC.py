@@ -25,9 +25,9 @@ import math
 '''
 
 exps_fixed = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
-exps_moving = ['exp29', 'exp30', 'exp31', 'exp32', 'exp33']
-seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [True, False]
+exps_moving = ['exp33']
+seeds = [128]
+fixed_or_not = [False]
 hard_scenario = False
 using_tanh = True
 
@@ -223,7 +223,7 @@ for i in range(len(seeds)):
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = hard_scenario) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
+        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''

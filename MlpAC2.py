@@ -20,7 +20,7 @@ from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 exps_fixed = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
 exps_moving = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
 seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [True]
+fixed_or_not = [False]
 hard_scenario = False
 with_entropy = False
 using_tanh = True

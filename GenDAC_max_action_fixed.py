@@ -57,7 +57,7 @@ def get_dynamic_max_action(step, total_steps, qoe_slack, current_success, curren
     
     # return success_streak, current_max_action
 
-    return 2
+    return 3
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # decay the exploration rate in cosin. It's used when exploration_rate_decay is True
