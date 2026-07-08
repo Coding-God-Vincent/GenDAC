@@ -270,9 +270,9 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 '''system env setup'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
-fixed_UE = True
+fixed_UE = False
 seeds = [124, 125, 126, 127, 128]
-exps = ['exp330', 'exp331', 'exp332', 'exp333', 'exp334']
+exps = ['exp451', 'exp452', 'exp453', 'exp454', 'exp455']
 hard_scenario = False
 DDIM = False
 
@@ -465,8 +465,8 @@ for i in range(len(seeds)):
     if hard_scenario: dl_mimo = 3  # 原本是 64
     else: dl_mimo = 16
     UE_no = 100 if fixed_UE else 300
-    if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
-    else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+    if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
+    else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
     env.activity()  # 所有 UE 開始根據其網路切片產生封包

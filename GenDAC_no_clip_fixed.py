@@ -243,26 +243,33 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 '''system env setup'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
-fixed_UE = False
+fixed_UE = True
 
-max_actions = [1, 2]
-action_scales = [3.0, 1.5]
+steps = [5, 7]
 
-seeds = [124, 125, 126, 127, 128]
+seeds_5 = [127]
+seeds_7 = [125, 126, 127, 128]
 
-exps_1 = ['exp401', 'exp402', 'exp403', 'exp404', 'exp405']
-exps_2 = ['exp406', 'exp407', 'exp408', 'exp409', 'exp410']
-
+exps_1 = ['exp310', 'exp311', 'exp312', 'exp313', 'exp314']
+exps_3 = ['exp315', 'exp316', 'exp317', 'exp318', 'exp319']
+exps_5 = ['exp323']
+exps_7 = ['exp326', 'exp327', 'exp328', 'exp329']
 
 
 hard_scenario = False
 DDIM = False
 
 
-for m, ma in enumerate(max_actions):
+for step in steps:
     
-    if ma == 1: exps = exps_1
-    else: exps = exps_2
+    if step == 1: exps = exps_1
+    elif step == 3: exps = exps_3
+    elif step == 5: 
+        exps = exps_5
+        seeds = seeds_5
+    else: 
+        exps = exps_7
+        seeds = seeds_7
 
     for i in range(len(seeds)):
         
@@ -284,6 +291,7 @@ for m, ma in enumerate(max_actions):
         # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
         # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp19/tensorboard"
         # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+        
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
         else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
@@ -302,14 +310,14 @@ for m, ma in enumerate(max_actions):
         action_dim = len(ser_cat)
 
         # training parameters
-        initial_max_action = ma
+        initial_max_action = 3  
         logit_low = -0.5
         logit_high = 0.5
         scale = True  # scale the action or not
-        action_scale_factor = action_scales[m]
+        action_scale_factor = 1.0
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = 3
+        if fixed_UE: denoise_step = step
         else: denoise_step = 7
         actor_lr = 3e-4
         critic_lr = 1e-3
@@ -561,15 +569,13 @@ for m, ma in enumerate(max_actions):
 
             # Curicculum Learning : Adjust max_action dynamically
             # calculate the current max_action
-            # current_max_action = get_dynamic_max_action(
-            #     step= frame, 
-            #     total_steps= total_timesteps, 
-            #     qoe_slack= qoe_slack, 
-            #     current_success= current_success, 
-            #     current_max_action= current_max_action
-            # )
-            current_max_action = initial_max_action
-            
+            current_max_action = get_dynamic_max_action(
+                step= frame, 
+                total_steps= total_timesteps, 
+                qoe_slack= qoe_slack, 
+                current_success= current_success, 
+                current_max_action= current_max_action
+            )
             # modify max action in created instances
             # # 1. diffusion.py 中有 max_action 屬性
             # actor.max_action = current_max_action

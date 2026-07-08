@@ -17,9 +17,9 @@ from Utils.Diffusion_utils.helpers import GaussianNoise
 from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
-exps_fixed = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
+exps_fixed = ['exp29', 'exp30', 'exp31']
 exps_moving = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
-seeds = [124, 125, 126, 127, 128]
+seeds = [126, 127, 128]
 fixed_or_not = [True]
 hard_scenario = False
 with_entropy = False
@@ -237,7 +237,7 @@ for i in range(len(seeds)):
             
             env.band_ser_cat = real_action
             
-            for i in range(learning_windows):
+            for _ in range(learning_windows):
                 env.scheduling()  
                 env.provisioning()  
                 env.activity()  

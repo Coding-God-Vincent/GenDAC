@@ -270,9 +270,9 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 '''system env setup'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
-fixed_UE = False
-seeds = [124, 125, 126, 127, 128]
-exps = ['exp411', 'exp412', 'exp413', 'exp414', 'exp415']
+fixed_UE = True
+seeds = [124]
+exps = ['exp385']
 hard_scenario = False
 DDIM = False
 
@@ -281,7 +281,7 @@ DDIM = False
 # bits of previous winodw packets of each slice (ever get in queue)
 '''State 2'''
 # bits of previous winodw packets of each slice (ever get in queue), avg queue length of UEs of each slice
-use_queue_state = True
+use_queue_state = False
 '''State 3'''
 use_mobility_state = False
 # 新增兩個 mobility 相關的資訊，一個是各切片的 active UE no，另一個是各切片所屬的 active UE 跟 BS 之間的平均距離
@@ -465,8 +465,8 @@ for i in range(len(seeds)):
     if hard_scenario: dl_mimo = 3  # 原本是 64
     else: dl_mimo = 16
     UE_no = 100 if fixed_UE else 300
-    if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
-    else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+    if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
+    else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
     env.activity()  # 所有 UE 開始根據其網路切片產生封包

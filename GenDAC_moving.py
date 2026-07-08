@@ -245,15 +245,15 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 # hyperparameters
 fixed_UE = False
 
-steps = [5]
+steps = [1]
 
 
-seeds = [128]
+seeds = [124, 125, 126, 127, 128]
 
 exps_1 = ['exp381', 'exp382', 'exp383', 'exp384', 'exp385']
-exps_3 = ['exp387', 'exp388', 'exp389', 'exp390']
-exps_5 = ['exp395']
-exps_7 = ['exp396', 'exp397', 'exp398', 'exp399', 'exp400']
+exps_3 = ['exp386', 'exp387', 'exp388', 'exp389', 'exp390']
+exps_5 = ['exp391', 'exp392', 'exp393', 'exp394', 'exp395']
+# exps_7 = ['exp396', 'exp397', 'exp398', 'exp399', 'exp400']
 
 
 hard_scenario = False
@@ -265,10 +265,8 @@ for step in steps:
     if step == 1: exps = exps_1
     elif step == 3: 
         exps = exps_3
-        seeds = seeds_3
     elif step == 5: 
         exps = exps_5
-        seeds = seeds
     else: exps = exps_7
 
     for i in range(len(seeds)):
@@ -316,8 +314,8 @@ for step in steps:
         action_scale_factor = 1.0
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = step
-        else: denoise_step = 7
+        if fixed_UE: denoise_step = 3
+        else: denoise_step = step
         actor_lr = 3e-4
         critic_lr = 1e-3
         weight_decay_actor = 1e-4
