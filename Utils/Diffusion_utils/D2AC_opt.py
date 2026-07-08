@@ -36,6 +36,7 @@ class D2AC_OPT(BasePolicy):
         max_action : int = 1,
         safe_margin : float = 1.0,
         with_action_penalty : bool = False,
+        clip_denoised : bool = True,
         **kwargs : any
     ):
         super().__init__(**kwargs)
@@ -60,6 +61,7 @@ class D2AC_OPT(BasePolicy):
         self.max_action = max_action
         self.safe_margin = safe_margin
         self.with_action_penalty = with_action_penalty
+        self.clip_denoised = clip_denoised
         
         # if we want to decay the lr, use CosineAnnealingLR
         if lr_decay:
@@ -121,14 +123,16 @@ class D2AC_OPT(BasePolicy):
         batch = buffer[indices]  # 取出當前 batch 的資料，type = Batch()，此時 batch.obs_next 即是 s(t+n)
         # 算出 a_target(t+n), shape (batch_size, action_dim)
         act_target = self.forward(batch= batch, state= 'obs_next', model= 'target_actor').act  # steps 亂填沒差，不會加 noise
-        # 去中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
+        # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
         act_target = act_target - act_target.mean(dim= 1, keepdim= True)
-        # 找出 abs 後最大者
-        max_abs = torch.max(torch.abs(act_target), dim= 1, keepdim=True)[0]
-        # 算出縮放比例 (使用 self.max_action)
-        scale_factor = torch.clamp(self.max_action / (max_abs + 1e-8), max= 1.0)
-        # 執行縮放
-        act_target = act_target * scale_factor
+
+        if self.clip_denoised:
+            # 找出 abs 後最大者
+            max_abs = torch.max(torch.abs(act_target), dim= 1, keepdim=True)[0]
+            # 算出縮放比例 (使用 self.max_action)
+            scale_factor = torch.clamp(self.max_action / (max_abs + 1e-8), max= 1.0)
+            # 執行縮放
+            act_target = act_target * scale_factor
         # 為了傳入 targetQ，把 obs_next 取出來。shape (batch_size, state_dim)
         s_t_n = to_torch(batch.obs_next, device= self.device, dtype= torch.float32)
         return self.target_critic.q_min(state= s_t_n, action= act_target)  # shape (batch_size)
@@ -219,11 +223,13 @@ class D2AC_OPT(BasePolicy):
         
         # 對 Logit 做中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [0, 0, 0] 的差別
         action = action - action.mean(dim= 1, keepdim= True)  
-        max_abs = torch.max(torch.abs(action), dim=1, keepdim=True)[0]
-        # 算出縮放比例 (使用 self.max_action)
-        scale_factor = torch.clamp(self.max_action / (max_abs + 1e-8), max=1.0)
-        # 執行縮放
-        action = action * scale_factor
+
+        if self.clip_denoised:
+            max_abs = torch.max(torch.abs(action), dim=1, keepdim=True)[0]
+            # 算出縮放比例 (使用 self.max_action)
+            scale_factor = torch.clamp(self.max_action / (max_abs + 1e-8), max=1.0)
+            # 執行縮放
+            action = action * scale_factor
         
         # 3. policy loss
         # mean() 只接受 torch.float32，而這邊 q_min 是從神經網路出來，自然是 torch.float32

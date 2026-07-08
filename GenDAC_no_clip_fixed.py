@@ -157,7 +157,8 @@ def get_actions(state,
                 slack_based_explore, 
                 slack,
                 scale,
-                action_scale_factor
+                action_scale_factor,
+                clip_denoised= True
     ):
     state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)
     # action_logit : (batch_size, action_dim)
@@ -185,15 +186,17 @@ def get_actions(state,
 
     # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
     action_logit = action_logit - action_logit.mean(dim= 1, keepdim= True)  # (batch_size, action_dim)
-
-    # 為了避免中心化後的內容超過 max_action，這邊要再等比例縮放
-    # 找出 abs 後最大的那個值
-    max_abs = torch.max(torch.abs(action_logit), dim= 1, keepdim= True)[0]
-    # 若有超過 max_action，那就要等比例縮放，若沒有就維持原比例
-    scale_factor = torch.clamp(max_action / (max_abs + 1e-8), max= 1.0)
-    action_logit = action_logit * scale_factor
+    
+    if clip_denoised:
+        # 為了避免中心化後的內容超過 max_action，這邊要再等比例縮放
+        # 找出 abs 後最大的那個值
+        max_abs = torch.max(torch.abs(action_logit), dim= 1, keepdim= True)[0]
+        # 若有超過 max_action，那就要等比例縮放，若沒有就維持原比例
+        scale_factor = torch.clamp(max_action / (max_abs + 1e-8), max= 1.0)
+        action_logit = action_logit * scale_factor
 
     if scale: scaled_action_logit = action_logit * action_scale_factor
+    else: scaled_action_logit = action_logit
 
     proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
@@ -317,8 +320,8 @@ for step in steps:
         action_scale_factor = 1.0
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
-        if fixed_UE: denoise_step = step
-        else: denoise_step = 7
+        if fixed_UE: denoise_step = 3
+        else: denoise_step = 3
         actor_lr = 3e-4
         critic_lr = 1e-3
         weight_decay_actor = 1e-4
@@ -339,6 +342,7 @@ for step in steps:
         safe_margin = 0.99
         with_action_penalty = False
         initial_lambda = 0.5
+        clip_denoised = False
 
         # record training parameters in tensorboard
         note = '動態調整 max_action (1->4)'
@@ -366,7 +370,7 @@ for step in steps:
             denoise_steps= denoise_step,
             # 用 True 的原因為 : (原始 DDPM 也是這樣)
             # 每一步都 clamp -> 越低的機率出現那種超大的值 -> 被 clamp 的機率越低 -> 學習越穩定。
-            clip_denoised= True,  # True -> 中間的每一步的 x_0 都會被 clamp 掉
+            clip_denoised= clip_denoised,  # True -> 中間的每一步的 x_0 都會被 clamp 掉
             device= device,
             DDIM= DDIM
         ).to(device= device)
@@ -419,6 +423,7 @@ for step in steps:
             tau= tau,
             safe_margin= safe_margin,
             with_action_penalty= with_action_penalty,
+            clip_denoised= clip_denoised,
             # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
             action_space= fake_action_space
         )
@@ -620,7 +625,8 @@ for step in steps:
                 slack_based_explore= slack_based_explore,
                 slack= slack,
                 scale= scale,
-                action_scale_factor= action_scale_factor
+                action_scale_factor= action_scale_factor,
+                clip_denoised= clip_denoised
             )
             print(f"original_logits = {origianl_logit}, action_logits = {action_logit}")
             print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")

@@ -225,7 +225,8 @@ class Diffusion(nn.Module):
             else: x_next = self.DDIM_single_denoise_step(x_t= x_t, t= timesteps, state= state)
             x_t = x_next
         # return torch.tanh(x_next)
-        return torch.clamp(x_t, -self.max_action, self.max_action)
+        if self.clip_denoised: return torch.clamp(x_t, -self.max_action, self.max_action)
+        else: return x_t
     
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
