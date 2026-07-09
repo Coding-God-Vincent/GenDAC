@@ -321,6 +321,35 @@ for i in range(len(seeds)):
             # 動態調整 ACTION_SCALE
             # ACTION_SCALE = min(1.0, 1.0 + (frame / 5000.0) * 2.0)
 
+
+            # 量推論時間
+            state_tensor = torch.from_numpy(state).to(
+                dtype= torch.float32,
+                device= DEVICE
+            ).unsqueeze(dim= 0)
+
+            if DEVICE == 'cuda':
+                torch.cuda.synchronize()
+
+            t0 = time.perf_counter()
+
+            with torch.no_grad():
+                if using_tanh:
+                    _ = Actor.sample_action(state_tensor)
+                else:
+                    _ = Actor.sample_action_no_tanh(state_tensor)
+
+            if DEVICE == 'cuda':
+                torch.cuda.synchronize()
+
+            inference_time_ms = (time.perf_counter() - t0) * 1000
+
+            writer.add_scalar(
+                tag='time/inference_ms',
+                scalar_value=inference_time_ms,
+                global_step=frame
+            )
+
             # action_tanh : torch.tensor with shape (action_dim), no grad
             # log_prob : float
             # value : float
@@ -466,7 +495,7 @@ for i in range(len(seeds)):
         plt.plot(ma_qoe_volte)
         plt.plot(ma_qoe_embb)
         plt.plot(ma_qoe_urllc)
-        plt.legend(["VoLTE", "Video", "URLLC"])
+        plt.legend(["dim0", "dim1", "dim2"])
         plt.savefig(image_path / f"QoE.png")
 
         # se figure (figure(4))
