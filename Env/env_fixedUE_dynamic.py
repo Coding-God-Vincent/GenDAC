@@ -73,6 +73,8 @@ class cellularEnv(object):
         learning_windows = 60000,
 
         hard_scenario = False,
+        profile_shift_interval = 3000,
+        profile_schedule = None
 
         
     ):
@@ -122,7 +124,20 @@ class cellularEnv(object):
         # 論文實驗環境中是設為 2000，代表每 2000 * 0.5ms = 1s 會更新一次參數
         self.learning_windows = round(learning_windows * self.time_subframe, 4)
 
-        self.ser_cat = ser_cat
+        # shift profile
+        self.base_ser_cat = list(ser_cat)
+        self.profile_shift_interval = profile_shift_interval
+        if profile_schedule is None:
+            profile_schedule = [
+                ['volte', 'embb_general', 'urllc'],
+                ['urllc', 'volte', 'embb_general'],
+                ['embb_general', 'urllc', 'volte'],
+                ['volte', 'embb_general', 'urllc'],
+            ]
+        self.profile_schedule = profile_schedule
+        self.current_profile_phase = 0
+        self.ser_cat = list(self.profile_schedule[0])
+
         if len(self.ser_cat) > 1:
             self.band_ser_cat = np.zeros(len(ser_cat))  # 創建存各種網路切片每個 learning window 分到的頻寬資源的 np.ndarray
             if len(ser_prob) == len(self.ser_cat):  # 這邊就是把 [6 : 6 : 1] 正規化成機率
@@ -176,6 +191,41 @@ class cellularEnv(object):
         self.active_ue_distance_sum = np.zeros(len(ser_cat))
         
         
+    #=======================================================================================================================================#
+    # change profile every 3000 window
+    def update_profile_schedule(self, frame):
+        new_phase = frame // self.profile_shift_interval
+        new_phase = min(new_phase, len(self.profile_schedule) - 1)
+
+        # 還沒換 profile
+        if new_phase == self.current_profile_phase:
+            return False, list(self.ser_cat), list(self.ser_cat)
+
+        # 換 profile
+        old_order = list(self.ser_cat)
+        self.current_profile_phase = new_phase
+        self.ser_cat = list(self.profile_schedule[new_phase])
+        # RR scheduler 的 index 要重設，避免沿用上一個 profile order 的排程位置
+        if hasattr(self, 'ser_schedu_ind'):
+            if isinstance(self.ser_schedu_ind, list):
+                self.ser_schedu_ind = [0] * len(self.ser_cat)
+            else:
+                self.ser_schedu_ind = 0
+
+        return True, old_order, list(self.ser_cat)
+
+
+    #=======================================================================================================================================#
+    # 把 observation remap 到當前的 profile order
+    def remap_observation_to_current_order(self, observation, old_order):
+        observation = np.asarray(observation)
+        remapped = np.zeros_like(observation)
+
+        for new_i, profile_name in enumerate(self.ser_cat):
+            old_i = old_order.index(profile_name)
+            remapped[new_i] = observation[old_i]
+
+        return remapped
 
     #=======================================================================================================================================#
     # 通道模型 (只考慮大尺度衰弱 (考慮 path loss 和 shadow fading)) : 會得出每一個 UE 的通道狀況 (chan_loss, shape = (UE_max_no, 1))。 unit : dB
@@ -478,11 +528,12 @@ class cellularEnv(object):
                 # buffer 如果是空的就產生封包，如果不是空的就不產生
                 if self.UE_buffer[:, ue_id].size - np.count_nonzero(self.UE_buffer[:, ue_id]) != 0: # The buffer is not full (5 - 目前 UE 對應的 Queue 中的封包個數)
                     buf_ind = np.where(self.UE_buffer[:, ue_id] == 0)[0][0]  # buffer index 從 0 開始找到第一個為空的地方，將封包產生在這
-                    
+                    ser_index = self.ser_cat.index(self.UE_cat[ue_id])
+
                     # 依照 UE 隸屬的網路切片規則來產生封包
                     if self.UE_cat[ue_id] == 'volte':
                         self.UE_buffer[buf_ind, ue_id] = 40 * 8  # 產生一個大小為 40Byte 的封包放到剛剛的找到的空位
-                        self.tx_bit_no[0] += 40 * 8  # 紀錄該封包的 bits 數到 volte 欄位
+                        self.tx_bit_no[ser_index] += 40 * 8  # 紀錄該封包的 bits 數到 volte 欄位
                         self.UE_readtime[ue_id] = np.random.uniform(0, 160 * 10 ** (-3), 1).squeeze()  # 每次產生完封包之後都會再隨機產生 readtime
 
                     elif self.UE_cat[ue_id] == 'embb_general':
@@ -497,7 +548,7 @@ class cellularEnv(object):
                                 tmp_buffer_size = 12800
                         # tmp_buffer_size = np.random.choice([1*8*10**6, 2*8*10**6, 3*8*10**6, 4*8*10**6, 5*8*10**6])
                         self.UE_buffer[buf_ind, ue_id] = tmp_buffer_size
-                        self.tx_bit_no[1] += tmp_buffer_size
+                        self.tx_bit_no[ser_index] += tmp_buffer_size
                         # 再產生一次 readtime
                         self.UE_readtime[ue_id] = np.random.pareto(1.2, 1).squeeze() * 6 * 10 ** -3  
                         if self.UE_readtime[ue_id] > 12.5 * 10 ** -3:
@@ -514,7 +565,7 @@ class cellularEnv(object):
                         # 大封包
                         # tmp_buffer_size = np.random.choice([0.3*8*10**6, 0.4*8*10**6, 0.5*8*10**6, 0.6*8*10**6, 0.7*8*10**6])  # buffer_size 介於 0.3 ~ 0.7M Bytes
                         self.UE_buffer[buf_ind,ue_id] = tmp_buffer_size
-                        self.tx_bit_no[2] += tmp_buffer_size
+                        self.tx_bit_no[ser_index] += tmp_buffer_size
                         # 再產生一個 readtime
                         if self.hard_scenario == False:
                             self.UE_readtime[ue_id]  = np.random.exponential(180* 10 ** -3, 1).squeeze()
