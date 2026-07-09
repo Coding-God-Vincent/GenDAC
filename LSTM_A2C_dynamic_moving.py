@@ -369,7 +369,7 @@ for i in range(len(seeds)):
         next_state = torch.from_numpy(next_state).to(device= DEVICE, dtype= torch.float32).unsqueeze(dim= 0)  # shape (1, sequence_length, n_state)
         qoe, se = env.get_reward()  # se : np.int with shape (1), qoe : np.array with shape (3)
         qoe_for_reward = reorder_to_base_order(qoe, env.ser_cat)
-        utility, reward = utils.calc__reward(qoe= qoe, se= se)  # utility, reward : np.array with shape (1)
+        utility, reward = utils.calc__reward(qoe= qoe_for_reward, se= se)  # utility, reward : np.array with shape (1)
         v_values2 = Model.target_v(state= next_state).squeeze(dim= 1)  # (batch_size)
         td_target = reward[0] + gamma * v_values2
         loss = Model.learn(state= state, action= torch.tensor(action, dtype= torch.long, device= DEVICE), td_target= td_target)
@@ -397,9 +397,9 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'individual_se/dim0', scalar_value= individual_se[0], global_step= frame)
         writer.add_scalar(tag= 'individual_se/dim1', scalar_value= individual_se[1], global_step= frame)
         writer.add_scalar(tag= 'individual_se/dim2', scalar_value= individual_se[2], global_step= frame)
-        writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-        writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
-        writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
+        # writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+        # writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
+        # writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
@@ -413,8 +413,8 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'observationPackets/dim1', scalar_value= observation_packets[1], global_step= frame)
         writer.add_scalar(tag= 'observationPackets/dim2', scalar_value= observation_packets[2], global_step= frame)
 
-    if fixed_UE == True: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
-    else: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
+    # if fixed_UE == True: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
+    # else: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
     
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     '''Generate Outcome Figures'''
