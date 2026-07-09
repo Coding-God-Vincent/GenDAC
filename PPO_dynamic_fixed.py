@@ -6,7 +6,7 @@ import numpy as np
 from tqdm.auto import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
-from Env.env_fixedUE import cellularEnv
+from Env.env_fixedUE_dynamic import cellularEnv
 from Env.env_movingUE_dynamic import EnvMove
 from Utils.PPO_utils import RolloutBuffer, PPOopt, Model
 from Utils.seed import set_seed
