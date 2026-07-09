@@ -12,8 +12,7 @@ from Utils.PPO_utils import RolloutBuffer, PPOopt, Model
 from Utils.seed import set_seed
 from pprint import pprint
 import math
-
-
+import time
 
 fixed = False
 exps = ['exp39']
@@ -22,8 +21,6 @@ using_tanh = False
 hard_scenario = False
 
 for i in range(len(seeds)):
-    
-    
     
         print(f"It's {exps[i]}, seeds {seeds[i]}")
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -441,9 +438,9 @@ for i in range(len(seeds)):
             writer.add_scalar(tag= 'individual_se/dim0', scalar_value= individual_se[0], global_step= frame)
             writer.add_scalar(tag= 'individual_se/dim1', scalar_value= individual_se[1], global_step= frame)
             writer.add_scalar(tag= 'individual_se/dim2', scalar_value= individual_se[2], global_step= frame)
-            writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-            writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
-            writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
+            # writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+            # writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
+            # writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
