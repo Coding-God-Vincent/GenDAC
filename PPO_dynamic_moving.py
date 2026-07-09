@@ -15,8 +15,8 @@ import math
 import time
 
 fixed = False
-exps = ['exp39']
-seeds = [124]
+exps = ['exp40', 'exp41', 'exp42', 'exp43']
+seeds = [125, 126, 127, 128]
 using_tanh = False
 hard_scenario = False
 

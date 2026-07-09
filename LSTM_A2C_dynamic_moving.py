@@ -19,8 +19,8 @@ import time
 收斂的部分 Gemini 說是因為模型初始化的方式不同。舊版 tf 是用 Xavier Uniform，Pytorch 則是用 Kaming Uniform。
 '''
 
-seeds = [124]
-exps = ['exp32']
+seeds = [125, 126, 127, 128]
+exps = ['exp33', 'exp34', 'exp35', 'exp36']
 fixed = False
 hard_scenario = False
 
