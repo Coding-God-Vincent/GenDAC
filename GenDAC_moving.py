@@ -315,7 +315,7 @@ for step in steps:
         total_timesteps = 10000  #  10000 in GAN_DDQN & LSTM_A2C learning_windows (episodes)
         beta_schedule = 'vp'
         if fixed_UE: denoise_step = 3
-        else: denoise_step = step
+        else: denoise_step = 3
         actor_lr = 3e-4
         critic_lr = 1e-3
         weight_decay_actor = 1e-4
