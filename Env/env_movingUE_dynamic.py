@@ -511,7 +511,7 @@ class EnvMove(object):
                 # case1 : volte
                 if self.UE_cat[ue_id] == 'volte':
                     self.UE_buffer[buf_ind, ue_id] = 40 * 8  # packet size = 320 bits
-                    self.tx_bit_no[0] += 40 * 8
+                    self.tx_bit_no[self.ser_cat.index('volte')] += 40 * 8
                     self.UE_readtime[ue_id] = np.random.uniform(0, 160 * 10 ** (-3), 1).squeeze()  # generate a new readtime
                 # case2 : embb_general
                 elif self.UE_cat[ue_id] == 'embb_general':
@@ -525,7 +525,7 @@ class EnvMove(object):
                             tmp_buffer_size = 12800
                     # tmp_buffer_size = np.random.choice([1*8*10**6, 2*8*10**6, 3*8*10**6, 4*8*10**6, 5*8*10**6])
                     self.UE_buffer[buf_ind, ue_id] = tmp_buffer_size
-                    self.tx_bit_no[1] += tmp_buffer_size
+                    self.tx_bit_no[self.ser_cat.index('embb_general')] += tmp_buffer_size
                     self.UE_readtime[ue_id] = np.random.pareto(1.2, 1).squeeze() * 6 * 10 ** -3  # generate a new readtime
                     if self.UE_readtime[ue_id] > 12.5 * 10 ** -3:
                         self.UE_readtime[ue_id] = 12.5 * 10 ** -3
@@ -545,7 +545,7 @@ class EnvMove(object):
                     #     [0.3 * 8 * 10 ** 6, 0.4 * 8 * 10 ** 6, 0.5 * 8 * 10 ** 6, 0.6 * 8 * 10 ** 6,
                     #      0.7 * 8 * 10 ** 6])
                     self.UE_buffer[buf_ind, ue_id] = tmp_buffer_size
-                    self.tx_bit_no[2] += tmp_buffer_size
+                    self.tx_bit_no[self.ser_cat.index('urllc')] += tmp_buffer_size
                     # generate a new readtime
                     # read time is determines much smaller; the spec shows the average time is 180s, but here it is defined as 180 ms
                     if self.hard_scenario == False: self.UE_readtime[ue_id] = np.random.exponential(180 * 10 ** -3, 1).squeeze()

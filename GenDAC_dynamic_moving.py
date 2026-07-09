@@ -742,10 +742,10 @@ for step in steps:
 
             # print the outcome of the current learning window
             print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}")
-            writer.add_scalar(tag= 'idle_frame/dim0', scalar_value= urllc_UE_slot, global_step= frame)
-            writer.add_scalar(tag= 'idle_frame/dim1', scalar_value= volte_UE_slot, global_step= frame)
-            writer.add_scalar(tag= 'idle_frame/dim2', scalar_value= embb_UE_slot, global_step= frame)
-            writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
+            # writer.add_scalar(tag= 'idle_frame/dim0', scalar_value= urllc_UE_slot, global_step= frame)
+            # writer.add_scalar(tag= 'idle_frame/dim1', scalar_value= volte_UE_slot, global_step= frame)
+            # writer.add_scalar(tag= 'idle_frame/dim2', scalar_value= embb_UE_slot, global_step= frame)
+            # writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
             writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
             writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
             writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
