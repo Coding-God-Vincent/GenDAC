@@ -593,6 +593,8 @@ for step in steps:
                     text_string= str(env.ser_cat),
                     global_step= frame
                 )
+                # 重建 replay buffer，避免被舊的資料汙染
+                buffer = ReplayBuffer(size= buffer_size)
 
             
             # 算一個 window 的中各切片所屬 UE 的平均 Queue length
