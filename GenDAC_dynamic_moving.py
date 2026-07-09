@@ -15,6 +15,7 @@ from pprint import pprint
 from Utils.seed import set_seed
 from Utils.Diffusion_utils.helpers import GaussianNoise
 import math
+import time  # 量推論時間
 
 
 '''Functions'''
@@ -160,10 +161,20 @@ def get_actions(state,
                 action_scale_factor
     ):
     state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)
+    
+    # 量推論時間
+    if device == 'cuda': torch.cuda.synchronize()
+    t0 = time.perf_counter()
+
     # action_logit : (batch_size, action_dim)
     with torch.no_grad():
         action_logit = model(state= state)
     
+    # 量推論時間
+    if device == 'cuda': torch.cuda.synchronize()
+    inference_time_ms = (time.perf_counter() - t0) * 1000
+
+
     if slack_based_explore:
         if slack > 0.02: sigma = 0.3
         elif slack <= 0.01 and slack > 0: sigma = 0.2
@@ -244,20 +255,10 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = False
-
-steps = [1]
-
-
-seeds = [124, 125, 126, 127, 128]
-
-exps_1 = ['exp381', 'exp382', 'exp383', 'exp384', 'exp385']
-exps_3 = ['exp386', 'exp387', 'exp388', 'exp389', 'exp390']
-exps_5 = ['exp391', 'exp392', 'exp393', 'exp394', 'exp395']
-# exps_7 = ['exp396', 'exp397', 'exp398', 'exp399', 'exp400']
-
-
 hard_scenario = False
 DDIM = False
+seeds = [124]
+exps = ['exp456']
 
 
 for step in steps:
@@ -300,6 +301,7 @@ for step in steps:
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # set the device
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        
 
         # env parameters
         ser_cat = ['volte', 'embb_general', 'urllc']
@@ -338,7 +340,7 @@ for step in steps:
         initial_lambda = 0.5
 
         # record training parameters in tensorboard
-        note = '動態調整 max_action (1->4)'
+        note = 'Dynamic service-profile remapping with replay buffer reset'
         hparams_dict = {
             'denoise step' : denoise_step,
             'actor_lr' : actor_lr,
@@ -640,7 +642,7 @@ for step in steps:
 
             # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
             # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
-            origianl_logit, action_logit, scaled_action_logit, real_action = get_actions(
+            origianl_logit, action_logit, scaled_action_logit, real_action, inference_time_ms = get_actions(
                 state= state, 
                 state_dim= state_dim,
                 total_band= total_band, 
@@ -658,6 +660,14 @@ for step in steps:
                 scale= scale,
                 action_scale_factor= action_scale_factor
             )
+
+            # 存取測推論時間
+            writer.add_scalar(
+                tag= 'time/inference_ms',
+                scalar_value= inference_time_ms,
+                global_step= frame
+            )
+
             print(f"original_logits = {origianl_logit}, action_logits = {action_logit}")
             print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
             # print(f"action_logit = {action_logit}, real action = {real_action}")
