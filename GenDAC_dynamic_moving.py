@@ -208,7 +208,7 @@ def get_actions(state,
 
     proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
-    return original_logit.cpu().numpy().squeeze(), action_logit.cpu().numpy().squeeze(), scaled_action_logit.cpu().numpy().squeeze(), real_action
+    return original_logit.cpu().numpy().squeeze(), action_logit.cpu().numpy().squeeze(), scaled_action_logit.cpu().numpy().squeeze(), real_action, inference_time_ms
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -806,12 +806,12 @@ for i in range(len(seeds)):
     print("Complete")
 
     # 存下訓練好的參數以供後續產圖
-    if fixed_UE:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
-    else:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
+    # if fixed_UE:
+    #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
+    #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
+    # else:
+    #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
+    #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
 
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

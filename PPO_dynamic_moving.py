@@ -7,7 +7,7 @@ from tqdm.auto import tqdm
 from pathlib import Path
 import matplotlib.pyplot as plt
 from Env.env_fixedUE import cellularEnv
-from Env.env_movingUE import EnvMove
+from Env.env_movingUE_dynamic import EnvMove
 from Utils.PPO_utils import RolloutBuffer, PPOopt, Model
 from Utils.seed import set_seed
 from pprint import pprint
@@ -15,20 +15,15 @@ import math
 
 
 
-fixed_or_not = [True, False]
-exps_fixed = ['exp31', 'exp32', 'exp33', 'exp34', 'exp35']
-exps_moving = ['exp29', 'exp30', 'exp31', 'exp32', 'exp33']
-seeds = [124, 125, 126, 127, 128]
+fixed = False
+exps = ['exp39']
+seeds = [124]
 using_tanh = False
-
 hard_scenario = False
 
 for i in range(len(seeds)):
     
-    for fixed in fixed_or_not:
-
-        if fixed: exps = exps_fixed
-        else: exps = exps_moving
+    
     
         print(f"It's {exps[i]}, seeds {seeds[i]}")
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -215,7 +210,20 @@ for i in range(len(seeds)):
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            hard_scenario = hard_scenario,
+            profile_shift_interval= 3000,
+            profile_schedule= [
+                ['volte', 'embb_general', 'urllc'],
+                ['urllc', 'volte', 'embb_general'],
+                ['embb_general', 'urllc', 'volte'],
+                ['volte', 'embb_general', 'urllc'],
+            ]
+        )
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
@@ -274,6 +282,40 @@ for i in range(len(seeds)):
         state = state_preprocessing(observation_bits)  # np.array with shape (3)
 
         for frame in tqdm(range(1, total_timesteps+1)):
+
+            changed, old_order, new_order = env.update_profile_schedule(frame=frame)
+
+            if changed:
+                observation_packets = env.remap_observation_to_current_order(
+                    observation= observation_packets,
+                    old_order= old_order
+                )
+                observation_bits = env.remap_observation_to_current_order(
+                    observation= observation_bits,
+                    old_order= old_order
+                )
+
+                # PPO 是 on-policy，profile shift 後不能混舊 trajectory
+                Buffer.clear()
+
+                # 很重要：PPO 有額外保存 state 變數，所以 remap 後要重新算 state
+                state = state_preprocessing(observation_bits)
+
+                print(f"******[Dynamic Profile Shift] frame={frame}, {old_order} -> {new_order}******")
+                print("******[Rollout Buffer Reset]******")
+
+                writer.add_scalar(
+                    tag='dynamic/profile_phase',
+                    scalar_value=env.current_profile_phase,
+                    global_step=frame
+                )
+                writer.add_text(
+                    tag='dynamic/profile_order',
+                    text_string=str(env.ser_cat),
+                    global_step=frame
+                )
+
+
             print(f"\n\n******Episode {frame} :")
 
             # 動態調整 ACTION_SCALE
@@ -298,12 +340,12 @@ for i in range(len(seeds)):
             # reward, utility : np.array with shape (1)
             utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight)
 
-            writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
-            writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
-            writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
-            writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
-            writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
-            writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/dim0', scalar_value= observation_bits[0], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/dim1', scalar_value= observation_bits[1], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/dim2', scalar_value= observation_bits[2], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/dim0', scalar_value= observation_packets[0], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/dim1', scalar_value= observation_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/dim2', scalar_value= observation_packets[2], global_step= frame)
 
             observation_packets, observation_bits = env.get_state()  
             next_state = state_preprocessing(observation_bits)
@@ -361,36 +403,36 @@ for i in range(len(seeds)):
             Utilities.append(utility.item())
             
             # record training arguments
-            writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
-            writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
-            writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
+            writer.add_scalar(tag= 'qoe/dim0', scalar_value= qoe[0], global_step= frame)
+            writer.add_scalar(tag= 'qoe/dim1', scalar_value= qoe[1], global_step= frame)
+            writer.add_scalar(tag= 'qoe/dim2', scalar_value= qoe[2], global_step= frame)
             writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
             writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
             writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
-            writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
-            writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
-            writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
-            writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-            writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
-            writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/dim0', scalar_value= individual_se[0], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/dim1', scalar_value= individual_se[1], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/dim2', scalar_value= individual_se[2], global_step= frame)
+            writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+            writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
-            writer.add_scalar(tag= 'action/volte', scalar_value= action.numpy()[0], global_step= frame)  # 分配比例
-            writer.add_scalar(tag= 'action/embb_general', scalar_value= action.numpy()[1], global_step= frame)
-            writer.add_scalar(tag= 'action/urllc', scalar_value= action.numpy()[2], global_step= frame)
+            writer.add_scalar(tag= 'action/dim0', scalar_value= action.numpy()[0], global_step= frame)  # 分配比例
+            writer.add_scalar(tag= 'action/dim1', scalar_value= action.numpy()[1], global_step= frame)
+            writer.add_scalar(tag= 'action/dim2', scalar_value= action.numpy()[2], global_step= frame)
 
             env.countReset()  # reset 所有計數器
             if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
 
             state = next_state
         
-        if fixed_UE:
-            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/actor_weights.pth')
-            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/critic_weights.pth')
-        else:
-            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/actor_weights.pth')
-            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/critic_weights.pth')
+        # if fixed_UE:
+        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/actor_weights.pth')
+        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/critic_weights.pth')
+        # else:
+        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/actor_weights.pth')
+        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/critic_weights.pth')
 
         print("Complete")
 
