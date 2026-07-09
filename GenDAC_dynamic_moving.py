@@ -4,7 +4,7 @@ import numpy as np
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from Env.env_fixedUE import cellularEnv  # GANDDQN 環境 (不考慮使用者移動、考慮 100 人)
-from Env.env_movingUE import EnvMove  # LSTM 環境 (考慮使用者移動、考慮 1200 人)
+from Env.env_movingUE_dynamic import EnvMove  # LSTM 環境 (考慮使用者移動、考慮 1200 人)
 from Utils.Diffusion_utils.diffusion import Diffusion
 from Utils.Diffusion_utils.D2AC_opt import D2AC_OPT
 from Utils.Diffusion_utils.D2AC_model import GDM, DoubleCritic
@@ -434,7 +434,20 @@ for step in steps:
         else: dl_mimo = 16
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            hard_scenario= hard_scenario,
+            profile_shift_interval= 3000,
+            profile_schedule= [
+                ['volte', 'embb_general', 'urllc'],
+                ['urllc', 'volte', 'embb_general'],
+                ['embb_general', 'urllc', 'volte'],
+                ['volte', 'embb_general', 'urllc']
+            ]
+        )
         env.countReset()  # reset 所有計數器
         if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
         env.activity()  # 所有 UE 開始根據其網路切片產生封包
@@ -557,6 +570,30 @@ for step in steps:
         current_max_action = initial_max_action
         # for frame in tqdm(range(prefill_steps, total_timesteps)):
         for frame in tqdm(range(0, total_timesteps)):
+
+            # shift profile every 3000 window
+            changed, old_order, new_order = env.update_profile_schedule(frame= frame)
+            if changed:
+                observation_packets = env.remap_observation_to_current_order(
+                    observation= observation_packets,
+                    old_order= old_order
+                )
+                observation_bits = env.remap_observation_to_current_order(
+                    observation= observation_bits,
+                    old_order= old_order
+                )
+                print(f"******[Dynamic Profile Shift] frame={frame}, {old_order} -> {new_order}******")
+                writer.add_scalar(
+                    tag= 'dynamic/profile_phase',
+                    scalar_value= env.current_profile_phase,
+                    global_step= frame
+                )
+                writer.add_text(
+                    tag= 'dynamic/profile_order',
+                    text_string= str(env.ser_cat),
+                    global_step= frame
+                )
+
             
             # 算一個 window 的中各切片所屬 UE 的平均 Queue length
             # np.array with shape (3), [volte, embb, urllc]
@@ -705,13 +742,13 @@ for step in steps:
 
             # print the outcome of the current learning window
             print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}")
-            writer.add_scalar(tag= 'idle_frame/urllc', scalar_value= urllc_UE_slot, global_step= frame)
-            writer.add_scalar(tag= 'idle_frame/volte', scalar_value= volte_UE_slot, global_step= frame)
-            writer.add_scalar(tag= 'idle_frame/embb', scalar_value= embb_UE_slot, global_step= frame)
+            writer.add_scalar(tag= 'idle_frame/dim0', scalar_value= urllc_UE_slot, global_step= frame)
+            writer.add_scalar(tag= 'idle_frame/dim1', scalar_value= volte_UE_slot, global_step= frame)
+            writer.add_scalar(tag= 'idle_frame/dim2', scalar_value= embb_UE_slot, global_step= frame)
             writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
-            writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-            writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
-            writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+            writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
@@ -720,35 +757,35 @@ for step in steps:
             writer.add_scalar(tag= 'urllc_packets/fail_19.2KB', scalar_value= urllc_violate_packet_size[2], global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/fail_25.6KB', scalar_value= urllc_violate_packet_size[3], global_step= frame)
             writer.add_scalar(tag= 'urllc_packets/fail_32KB', scalar_value= urllc_violate_packet_size[4], global_step= frame)
-            writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0], global_step= frame)  # 分配比例
-            writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1], global_step= frame)
-            writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2], global_step= frame)
-            writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
-            writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
-            writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
-            writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
-            writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
-            writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
-            writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
-            writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
-            writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
+            writer.add_scalar(tag= 'action/dim0', scalar_value= real_action[0], global_step= frame)  # 分配比例
+            writer.add_scalar(tag= 'action/dim1', scalar_value= real_action[1], global_step= frame)
+            writer.add_scalar(tag= 'action/dim2', scalar_value= real_action[2], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/dim0', scalar_value= observation_bits[0], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/dim1', scalar_value= observation_bits[1], global_step= frame)
+            writer.add_scalar(tag= 'observationBits/dim2', scalar_value= observation_bits[2], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/dim0', scalar_value= observation_packets[0], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/dim1', scalar_value= observation_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'observationPackets/dim2', scalar_value= observation_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'qoe/dim0', scalar_value= qoe[0], global_step= frame)
+            writer.add_scalar(tag= 'qoe/dim1', scalar_value= qoe[1], global_step= frame)
+            writer.add_scalar(tag= 'qoe/dim2', scalar_value= qoe[2], global_step= frame)
             writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
-            writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
-            writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
-            writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/dim0', scalar_value= individual_se[0], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/dim1', scalar_value= individual_se[1], global_step= frame)
+            writer.add_scalar(tag= 'individual_se/dim2', scalar_value= individual_se[2], global_step= frame)
             writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
             writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
-            writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= frame)
-            writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= frame)
-            writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'dropped_packet/dim0', scalar_value= dropped_packets[0], global_step= frame)
+            writer.add_scalar(tag= 'dropped_packet/dim1', scalar_value= dropped_packets[1], global_step= frame)
+            writer.add_scalar(tag= 'dropped_packet/dim2', scalar_value= dropped_packets[2], global_step= frame)
             writer.add_scalar(tag= 'max_action', scalar_value= current_max_action, global_step= frame)
             writer.add_scalar(tag= 'lambda', scalar_value= current_lambda, global_step= frame)
-            writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= frame)
-            writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= frame)
-            writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= frame)
-            writer.add_scalar(tag= 'avg_queue_length/volte', scalar_value= avg_queue_length_of_each_slices[0], global_step= frame)
-            writer.add_scalar(tag= 'avg_queue_length/embb', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
-            writer.add_scalar(tag= 'avg_queue_length/urllc', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
+            writer.add_scalar(tag= 'action_logit/dim0', scalar_value= action_logit[0], global_step= frame)
+            writer.add_scalar(tag= 'action_logit/dim1', scalar_value= action_logit[1], global_step= frame)
+            writer.add_scalar(tag= 'action_logit/dim2', scalar_value= action_logit[2], global_step= frame)
+            writer.add_scalar(tag= 'avg_queue_length/dim0', scalar_value= avg_queue_length_of_each_slices[0], global_step= frame)
+            writer.add_scalar(tag= 'avg_queue_length/dim1', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
+            writer.add_scalar(tag= 'avg_queue_length/dim2', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
             
             # gain next state (loading of each NS in the previous learning window)
             observation_packets, observation_bits = env.get_state()
@@ -794,7 +831,7 @@ for step in steps:
         plt.plot(ma_qoe_volte)
         plt.plot(ma_qoe_embb)
         plt.plot(ma_qoe_urllc)
-        plt.legend(["VoLTE", "Video", "URLLC"])
+        plt.legend(["dim0", "dim1", "dim2"])
         plt.savefig(image_path / f"QoE.png")
 
         plt.figure(4)

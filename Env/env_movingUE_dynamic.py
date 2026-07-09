@@ -47,7 +47,9 @@ class EnvMove(object):
                  dl_mimo = 32,  # MIMO 天線數
                  rx_gain = 20,  # dB
                  learning_windows = 60000,
-                 hard_scenario = False
+                 hard_scenario = False,
+                 profile_shift_interval = 3000,
+                 profile_schedule = None
     ):
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
@@ -71,6 +73,21 @@ class EnvMove(object):
         self.UE_band = np.zeros(UE_max_no)  # bandwidth each UE get in one timeslot
         self.learning_windows = round(learning_windows * self.time_subframe, 4)
         self.ser_cat = ser_cat  # no. of service categories
+        
+        # shift_profiles
+        self.base_ser_cat = list(ser_cat)
+        self.profile_shift_interval = profile_shift_interval
+        if profile_schedule == None:
+            profile_schedule = [
+                ['volte', 'embb_general', 'urllc'],
+                ['urllc', 'volte', 'embb_general'],
+                ['embb_general', 'urllc', 'volte'],
+                ['volte', 'embb_general', 'urllc']
+            ]
+        self.profile_schedule = profile_schedule
+        self.current_profile_phase = 0  # 目前是哪一個階段的 profile_schedule
+        self.ser_cat = list(self.profile_schedule[0])  # 初始 profile_schedule
+
         if len(self.ser_cat) > 1:  # more than 1 service category
             # self.band_ser_cat : bandwidth each service cat. get in one frame
             self.band_ser_cat = np.zeros(len(ser_cat))
@@ -134,11 +151,45 @@ class EnvMove(object):
         self.active_user_distance_sum = np.zeros(len(ser_cat))
 
     #=======================================================================================================================================#
+    # change profile every 3000 window
+    def update_profile_schedule(self, frame):
+        new_phase = frame // self.profile_shift_interval
+        new_phase = min(new_phase, len(self.profile_schedule) - 1)
+        
+        # 還沒換 profile
+        # return "使否換 profile", "舊 profile", "新 profile"
+        if new_phase == self.current_profile_phase:
+            return False, list(self.ser_cat), list(self.ser_cat)
+        
+        # 換 Profile
+        old_order = list(self.ser_cat)
+        self.current_profile_phase = new_phase
+        self.ser_cat = list(self.profile_schedule[new_phase])
+        # RR scheduler 的 index 要重設成 [0, 0, 0]，避免沿用上一個 profile order 的排程位置
+        # hasattr 是看本 object 中有沒有 'ser_schedu_ind'，即存不存在 self.ser_schedu_ind
+        if hasattr(self, 'ser_schedu_ind'):
+            self.ser_schedu_ind = [0] * len(self.ser_cat)
+        return True, old_order, list(self.ser_cat)
+
+    #=======================================================================================================================================#
+    # 把 Observation remap 到當前的順序
+    def remap_observation_to_current_order(self, observation, old_order):
+        observation = np.asarray(observation)  # 把 Observation 轉成 np.array
+        remapped = np.zeros_like(observation)  # np.array([0, 0, 0])
+
+        # self.ser_cat : 新的 Profile
+        for new_i, profile_name in enumerate(self.ser_cat):
+            old_i = old_order.index(profile_name)  # 找出舊 profile 各切片的 index
+            remapped[new_i] = observation[old_i]
+
+        return remapped
+
+    #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
     # output_shape : (self.UE_max_no, 1)
     def channel_model(self):
         if self.chan_mod == '36814':
-            shadowing_var = 8  # rayleigh fading shadowing variance 8dB
+            shadowing_var = 8  # shadowing variance 8dB
             # dis between the BS and UE
             # np.sqrt( (x^2 - 0 + y^2 - 0) )
             dis = np.sqrt(np.sum((self.BS_pos - self.UE_pos) ** 2, axis=1)) / 1000  # unit changes to km
