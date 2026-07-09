@@ -212,6 +212,18 @@ for i in range(len(seeds)):
         state = (pkt_nums - mean) / std
         return state
 
+    # 因為她的 reward function 是寫死的，所以在傳入之前要先幫他轉回原來的順序
+    def reorder_to_base_order(values, current_order):
+        base_order = ['volte', 'embb_general', 'urllc']
+        values = np.asarray(values)
+        reordered = np.zeros_like(values)
+
+        for base_i, ser_name in enumerate(base_order):
+            cur_i = current_order.index(ser_name)
+            reordered[base_i] = values[cur_i]
+
+        return reordered
+
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     '''創建環境並設定相關參數'''
     ser_cat = ['volte', 'embb_general', 'urllc']
@@ -283,7 +295,7 @@ for i in range(len(seeds)):
             env.activity()
         
         observation_packets, observation_bits = env.get_state()
-        observe = state_preprocessing(observation_packets)
+        observe = state_preprocessing(observation_packets, env.ser_cat)
         # print(observation_packets, observe)
         lstm_buffer.append(observe)
 
@@ -350,12 +362,13 @@ for i in range(len(seeds)):
             env.activity()
 
         observation_packets, observation_bits = env.get_state()
-        observe = state_preprocessing(observation_packets)
+        observe = state_preprocessing(observation_packets, env.ser_cat)
         lstm_buffer.pop(0)
         lstm_buffer.append(observe)
         next_state = np.vstack(lstm_buffer)  # lstm_buffer : np.array with shape (sequence_length, n_state)
         next_state = torch.from_numpy(next_state).to(device= DEVICE, dtype= torch.float32).unsqueeze(dim= 0)  # shape (1, sequence_length, n_state)
         qoe, se = env.get_reward()  # se : np.int with shape (1), qoe : np.array with shape (3)
+        qoe_for_reward = reorder_to_base_order(qoe, env.ser_cat)
         utility, reward = utils.calc__reward(qoe= qoe, se= se)  # utility, reward : np.array with shape (1)
         v_values2 = Model.target_v(state= next_state).squeeze(dim= 1)  # (batch_size)
         td_target = reward[0] + gamma * v_values2
