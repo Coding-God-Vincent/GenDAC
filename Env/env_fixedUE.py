@@ -74,6 +74,10 @@ class cellularEnv(object):
 
         hard_scenario = False,
 
+        new_mimo_scenario = False,
+
+        tx_antennas = 64
+
         
     ):
         self.BS_pos = BS_pos
@@ -85,6 +89,7 @@ class cellularEnv(object):
         self.noise_PSD = noise_PSD
         self.dl_mimo = dl_mimo
         self.UE_rx_gain = rx_gain
+        self.tx_antennas = tx_antennas
 
         self.chan_mod = chan_mod
         
@@ -147,6 +152,7 @@ class cellularEnv(object):
         self.idle_frame = 0
 
         self.hard_scenario = hard_scenario
+        self.new_mimo_scenario = new_mimo_scenario
 
         '''觀測用數值'''
         # 每一個 window 結束時，用來統計各網路切片所屬的 UE 的 buffer 的 packets 數，想看一下本篇的 loading 重不重
@@ -391,6 +397,7 @@ class cellularEnv(object):
         # if self.hard_scenario : self.channel_model_2()  # 考慮大尺度衰弱和小尺度衰弱
         # else: self.channel_model()  # 算出所有 UE 的通道狀況 (只慮大尺度衰弱後的通道，unit = dB) -> chan_loss (shape : (UE_max_no, 1))
         rx_power = 10 ** ((self.BS_tx_power - self.chan_loss + self.UE_rx_gain) / 10)  # 接收端收到的訊號的功率強度 (unit : W)，shape : (UE_max_no, 1)
+        if self.new_mimo_scenario: rx_power = rx_power * self.tx_antennas
         rx_power = rx_power.reshape(1, -1)[0]  # 把 shape 從 (UE_max_no, 1) 轉為 (1, UE_max_no) 再由 [0] 取出
 
         # 算出各 UE 的資料傳輸速率 (unit : bits/s) by Shannon，shape : (UE_max_no, 1)
@@ -399,6 +406,8 @@ class cellularEnv(object):
         # 最後乘上天線數量是一種理想情況的近似方法，為簡化建模。
         # 下述 Shannon 單位轉換見 Hackmd
         rate[UE_index] = self.UE_band[UE_index] * np.log2(1 + rx_power[UE_index] / ( 10 **(self.noise_PSD / 10) * self.UE_band[UE_index] )) * self.dl_mimo
+        
+
         
         # 找出有哪些 UE 是封包的傳送目的地
         # ex : 

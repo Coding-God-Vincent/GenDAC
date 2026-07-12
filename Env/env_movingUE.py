@@ -47,12 +47,16 @@ class EnvMove(object):
                  dl_mimo = 32,  # MIMO 天線數
                  rx_gain = 20,  # dB
                  learning_windows = 60000,
-                 hard_scenario = False
+                 hard_scenario = False,
+                 new_mimo_scenario = False,
+                 tx_antennas = 64
     ):
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
         self.BS_radius = BS_radius
         self.hard_scenario = hard_scenario
+        self.new_mimo_scenario = new_mimo_scenario
+        self.tx_antennas = tx_antennas
         self.edge = 1.5  # edge of the total area = 3 times of radius of the BS covarage area (原論文 3)
         self.band_whole = band_whole
         self.chan_mod = chan_mod
@@ -391,6 +395,7 @@ class EnvMove(object):
         self.channel_model()  # calculate the channel lost of all users (output_shape: (UE_max_no, 1))
         # calculate the received power of all users considering large-scale fading & convert the unit to W (output_shape: (UE_max_no, 1))
         rx_power = 10 ** ((self.BS_tx_power - self.chan_loss + self.UE_rx_gain) / 10)  
+        if self.new_mimo_scenario: rx_power = rx_power * self.tx_antennas
         rx_power = rx_power.reshape(1, -1)[0]  # output_shape change from (UE_max_no, 1) to (1, UE_max_no) and extract the (UE_max_no) part by [0]
         # calculate the data transmission rate of each user according to Shannon Theory
         rate = np.zeros(self.UE_max_no)  # unit : bit/s

@@ -18,21 +18,19 @@ import torch
 收斂的部分 Gemini 說是因為模型初始化的方式不同。舊版 tf 是用 Xavier Uniform，Pytorch 則是用 Kaming Uniform。
 '''
 
-seeds_fixed = [126, 127, 128]
-seeds_moving = [124, 125, 126, 127, 128]
-exps_fixed = ['exp29', 'exp30', 'exp31']
-exps_moving = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
-fixed_or_not = [True, False]
+seeds = [124, 125, 126, 127, 128]
+exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
+exps_moving = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
+fixed_or_not = [False, True]
 hard_scenario = False
+new_mimo_scenario = True
 
 for fixed in fixed_or_not:
 
     if fixed: 
         exps = exps_fixed
-        seeds = seeds_fixed
     else: 
         exps = exps_moving
-        seeds = seeds_moving
 
     for i in range(len(seeds)):
     
@@ -213,16 +211,41 @@ for fixed in fixed_or_not:
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
-        if hard_scenario: total_band = 20  # unit : MHz
-        else: total_band = 10
+        '''total bandwidth'''
+        if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+        elif new_mimo_scenario: total_band = 40 * 10**6
+        else: total_band = 10 * 10**6
+        
+        '''dl_mimo'''
+        if hard_scenario: dl_mimo = 3  # 原本是 64
+        elif new_mimo_scenario: dl_mimo = 4
+        else: dl_mimo = 16
+
+        '''UE_rx_gain'''
+        if new_mimo_scenario: rx_gain = 1
+        else: rx_gain = 20
+
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
-        if hard_scenario: dl_mimo = 3
-        else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300  # 原本 LSTM-A2C 那邊設 1200 應該是真的沒有 buffer reset，因為 1200 的話要跑超久。這邊為了加速我把人數訂為跟 GANDDQN 那邊一樣 100 人
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+        if fixed_UE: env = cellularEnv(
+            ser_cat= ser_cat, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            UE_max_no= UE_no, 
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
 
         '''GPU'''
         DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
