@@ -24,11 +24,12 @@ import math
     SAC 也一定要使用 tanh，我試過直接不用 tanh 會出現 bang-bang control 問題。
 '''
 
-exps_fixed = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
-exps_moving = ['exp33']
-seeds = [128]
+exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
+exps_moving = ['exp39', 'exp40', 'exp41', 'exp42', 'exp43']
+seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False
+new_mimo_scenario = True
 using_tanh = True
 
 for i in range(len(seeds)):
@@ -215,16 +216,41 @@ for i in range(len(seeds)):
         ser_cat = ['volte', 'embb_general', 'urllc']
         qoe_weights = [1, 1, 1]
         se_weight = 0.01
-        if hard_scenario: total_band = 20 * 10**6  # unit : MHz
-        else: total_band = 10 * 10 ** 6
-        total_timesteps = 10000
-        if hard_scenario : dl_mimo = 3
+        
+        '''total bandwidth'''
+        if hard_scenario : total_band = 20 * 10**6  # unit : MHz
+        elif new_mimo_scenario: total_band = 40 * 10**6
+        else: total_band = 10 * 10**6
+        '''dl_mimo'''
+        if hard_scenario : dl_mimo = 3  # 3
+        elif new_mimo_scenario: dl_mimo = 4
         else: dl_mimo = 16
+        '''UE_rx_gain'''
+        if new_mimo_scenario: rx_gain = 1
+        else: rx_gain = 20
+
+        total_timesteps = 10000
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = hard_scenario) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
-
+        if fixed_UE: env = cellularEnv(
+            ser_cat= ser_cat, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole = total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            UE_max_no= UE_no, 
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         batch_size = 32
@@ -276,11 +302,12 @@ for i in range(len(seeds)):
         # observation_bits : total bits of each NSs, np.array with shape (state_dim)
         observation_packets, observation_bits = env.get_state()  
         state = state_preprocessing(observation_bits)  # np.array with shape (3)
-
+        
+        inference_time_ms = 0
         for frame in tqdm(range(1, total_timesteps+1)):
             print(f"\n\n******Episode {frame} :")
             # ACTION_SCALE = min(1.0, 1.0 + (frame / 5000.0) * 2.0)
-            if using_tanh: action_logit = Sacopt.select_action(state= state)  # tensor (cpu) with shape (3)
+            if using_tanh: action_logit, inference_time_ms = Sacopt.select_action(state= state)  # tensor (cpu) with shape (3)
             else: action_logit = Sacopt.select_action_no_tanh(state= state)
             action_scaled = action_logit * ACTION_SCALE
             action = F.softmax(action_scaled, dim= 0) * total_band  # tensor (cpu) with shape (3)
@@ -295,7 +322,9 @@ for i in range(len(seeds)):
             qoe, se = env.get_reward()
             # utility, reward : np.array with shape (1)
             utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, reward_clipping= False)
-
+            
+            print(f"\ninference time (ms) = {inference_time_ms}")
+            writer.add_scalar(tag= 'time/inference_ms', scalar_value= inference_time_ms, global_step= frame)
             writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
             writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
             writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)

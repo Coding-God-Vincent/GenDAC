@@ -17,11 +17,12 @@ from Utils.Diffusion_utils.helpers import GaussianNoise
 from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
-exps_fixed = ['exp29', 'exp30', 'exp31']
-exps_moving = ['exp27', 'exp28', 'exp29', 'exp30', 'exp31']
-seeds = [126, 127, 128]
-fixed_or_not = [True]
+exps_fixed = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
+exps_moving = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
+seeds = [124, 125, 126, 127, 128]
+fixed_or_not = [True, False]
 hard_scenario = False
+new_mimo_scenario = True
 with_entropy = False
 using_tanh = True
 
@@ -200,22 +201,50 @@ for i in range(len(seeds)):
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         # generate the env
-        if hard_scenario : total_band = 20 * 10**6  
-        else : total_band = 10 * 10**6
+        '''total bandwidth'''
+        if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+        elif new_mimo_scenario: total_band = 40 * 10**6
+        else: total_band = 10 * 10**6
+        
+        '''dl_mimo'''
+        if hard_scenario: dl_mimo = 3  # 原本是 64
+        elif new_mimo_scenario: dl_mimo = 4
+        else: dl_mimo = 16
+
+        '''UE_rx_gain'''
+        if new_mimo_scenario: rx_gain = 1
+        else: rx_gain = 20
+
         qoe_weights = [1, 1, 1]  
         se_weight = 0.01  
         total_timesteps = 10000
         learning_windows = 2000  
-        if hard_scenario: dl_mimo = 3 
-        else: dl_mimo = 16
+        
         UE_no = 100 if fixed_UE else 300
         if using_tanh: action_scale = 3.0
         else: action_scale = 1.0
         exploration_rate = 0.1
         sigma = 0.1
 
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario = hard_scenario)
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
+        if fixed_UE: env = cellularEnv(
+            ser_cat= ser_cat, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole = total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            UE_max_no= UE_no, 
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
 
         env.countReset()  
         if not fixed_UE: env.user_move()  

@@ -9,11 +9,12 @@ from tqdm.auto import tqdm
 from Utils.seed import set_seed
 
 
-exps_fixed = ['exp19', 'exp20', 'exp21', 'exp22', 'exp23']
-exps_moving = ['exp13', 'exp14', 'exp15', 'exp16', 'exp17']
-seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [True, False]
+exps_fixed = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
+exps_moving = ['exp22']
+seeds = [128]
+fixed_or_not = [False]
 hard_scenario = False
+new_mimo_scenario = True
 
 for fixed in fixed_or_not:
 
@@ -65,19 +66,43 @@ for fixed in fixed_or_not:
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
-        if hard_scenario: total_band = 20  # unit : MHz
+        '''total bandwidth'''
+        if hard_scenario: total_band = 20  # 20MHz (original 10 MHz)
+        elif new_mimo_scenario: total_band = 40
         else: total_band = 10
+        '''dl_mimo'''
+        if hard_scenario: dl_mimo = 3  # 原本是 64
+        elif new_mimo_scenario: dl_mimo = 4
+        else: dl_mimo = 16
+        '''UE_rx_gain'''
+        if new_mimo_scenario: rx_gain = 1
+        else: rx_gain = 20
+
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
-        if hard_scenario: dl_mimo = 3
-        else: dl_mimo = 16
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
         # FixedUE 原論文 ser_prob : 6:6:1
         # MovingUE 原論文 ser_prob : 1:2:3
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
-
+        if fixed_UE: env = cellularEnv(
+            ser_cat= ser_cat, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band * 10 ** 6,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            UE_max_no= UE_no, 
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band * 10 ** 6,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Recording list'''
         QoEs = []

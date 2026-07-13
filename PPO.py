@@ -15,13 +15,14 @@ import math
 
 
 
-fixed_or_not = [True, False]
-exps_fixed = ['exp31', 'exp32', 'exp33', 'exp34', 'exp35']
-exps_moving = ['exp29', 'exp30', 'exp31', 'exp32', 'exp33']
+fixed_or_not = [False]
+exps_fixed = ['exp41', 'exp42', 'exp43', 'exp44', 'exp45']
+exps_moving = ['exp44', 'exp45', 'exp46', 'exp47', 'exp48']
 seeds = [124, 125, 126, 127, 128]
 using_tanh = False
 
 hard_scenario = False
+new_mimo_scenario = True
 
 for i in range(len(seeds)):
     
@@ -207,16 +208,41 @@ for i in range(len(seeds)):
         ser_cat = ['volte', 'embb_general', 'urllc']
         qoe_weights = [1, 1, 1]
         se_weight = 0.01
+
+        '''total bandwidth'''
         if hard_scenario : total_band = 20 * 10**6  # unit : MHz
+        elif new_mimo_scenario: total_band = 40 * 10**6
         else: total_band = 10 * 10**6
-        total_timesteps = 10000
+        '''dl_mimo'''
         if hard_scenario : dl_mimo = 3  # 3
+        elif new_mimo_scenario: dl_mimo = 4
         else: dl_mimo = 16
+        '''UE_rx_gain'''
+        if new_mimo_scenario: rx_gain = 1
+        else: rx_gain = 20
+
+        total_timesteps = 10000
         learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario) 
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario = hard_scenario)
-
+        if fixed_UE: env = cellularEnv(
+            ser_cat= ser_cat, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole = total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            UE_max_no= UE_no, 
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         trajectory_length = 128  # 因為本環境沒有 terminate state，所以自己訂一個 trajectory length (batch_size 的倍數)

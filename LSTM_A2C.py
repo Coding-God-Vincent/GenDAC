@@ -212,9 +212,9 @@ for fixed in fixed_or_not:
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
         '''total bandwidth'''
-        if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
-        elif new_mimo_scenario: total_band = 40 * 10**6
-        else: total_band = 10 * 10**6
+        if hard_scenario: total_band = 20  # 20MHz (original 10 MHz)
+        elif new_mimo_scenario: total_band = 40
+        else: total_band = 10
         
         '''dl_mimo'''
         if hard_scenario: dl_mimo = 3  # 原本是 64
@@ -232,6 +232,7 @@ for fixed in fixed_or_not:
         if fixed_UE: env = cellularEnv(
             ser_cat= ser_cat, 
             ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band * 10 ** 6,
             learning_windows= learning_windows, 
             dl_mimo= dl_mimo, 
             rx_gain= rx_gain,
@@ -241,6 +242,7 @@ for fixed in fixed_or_not:
         else: env = EnvMove(
             UE_max_no= UE_no, 
             ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band * 10 ** 6,
             learning_windows= learning_windows, 
             dl_mimo= dl_mimo, 
             rx_gain= rx_gain,

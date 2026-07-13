@@ -439,6 +439,7 @@ for i in range(len(seeds)):
     if fixed_UE: env = cellularEnv(
         ser_cat= ser_cat, 
         ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+        band_whole = total_band,
         learning_windows= learning_windows, 
         dl_mimo= dl_mimo, 
         rx_gain= rx_gain,

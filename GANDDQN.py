@@ -45,13 +45,15 @@ from Utils.GAN_utils.utils import initialize_weights
 
 from Utils.seed import set_seed
 from pathlib import Path
+import time
 
 
 seeds = [124, 125, 126, 127, 128]
-exps_fixed = ['exp35', 'exp36', 'exp37', 'exp38', 'exp39']
-exps_moving = ['exp30', 'exp31', 'exp32', 'exp33', 'exp34']
-fixed_or_not = [True, False]
+exps_fixed = ['exp40', 'exp41', 'exp42', 'exp43', 'exp44']
+exps_moving = ['exp35', 'exp36', 'exp37', 'exp38', 'exp39']
+fixed_or_not = [False]
 hard_scenario = False
+new_mimo_scenario = True
 
 for fixed in fixed_or_not:
 
@@ -671,15 +673,57 @@ for fixed in fixed_or_not:
         #=============================================================================================================================================#
         # WGAN-GP 的 Generator (G_model) 選擇動作 by ɛ-greedy
         # model -> 網路、s -> state (已經過前面的 state_update 狀態前處理，(3))、z -> quantile embedding (tau 組成的 vector)、eps -> epsilon
+        # def get_action(model, s, z, eps, device):
+        #     if np.random.random() >= eps:
+        #         # X.shape (1, 3)
+        #         X = torch.tensor(s).unsqueeze(0).to(torch.float).to(device)
+
+        #         a = model.G_model(X, z).squeeze(0).mean(1).max(0)[1]
+        #         # print(a)  
+        #         return a.item()  # from tensor to aboriginal python data type
+        #     else:
+        #         return np.random.randint(0, model.num_actions)
+            
         def get_action(model, s, z, eps, device):
-            if np.random.random() >= eps:
-                # X.shape (1, 3)
-                X = torch.tensor(s).unsqueeze(0).to(torch.float).to(device)
-                a = model.G_model(X, z).squeeze(0).mean(1).max(0)[1]
-                # print(a)  
-                return a.item()  # from tensor to aboriginal python data type
-            else:
-                return np.random.randint(0, model.num_actions)
+            explore = np.random.random() < eps
+            
+            # X.shape (1, 3)
+            # NumPy → Tensor 不列入模型推論時間
+            state_tensor = torch.as_tensor(
+                s,
+                dtype=torch.float32,
+                device=device
+            ).unsqueeze(dim=0)  # shape: (1, state_dim)
+            
+            # GPU operation 是非同步的，計時前先完成之前的工作
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
+
+            t0 = time.perf_counter()
+
+            with torch.inference_mode():
+                # q_particles: (1, num_actions, num_samples)
+                q_particles = model.G_model(state_tensor, z)
+                # 對每個 action 的 32 個 particles 取平均
+                # shape: (1, num_actions)
+                expected_q_values = q_particles.mean(dim=2)
+                # 取得平均 Q-value 最大的 action
+                # shape: (1)
+                greedy_action_tensor = expected_q_values.argmax(dim=1)
+            
+            # 確定 GPU 上的 Generator、mean 與 argmax 都真正完成
+            if device.type == 'cuda':
+                torch.cuda.synchronize()
+            
+            inference_time_ms = (time.perf_counter() - t0) * 1000.0
+            
+            # GPU → CPU 不列入推論時間
+            greedy_action = greedy_action_tensor.item()
+                
+            if explore: action = np.random.randint(0, model.num_acitons)
+            else: action = greedy_action
+            
+            return action, inference_time_ms
 
         #=============================================================================================================================================#
         def plot_rewards(rewards):
@@ -729,24 +773,53 @@ for fixed in fixed_or_not:
         total_timesteps = 10000
         # parameters of celluar environment
         ser_cat_vec = ['volte', 'embb_general', 'urllc']
-        if hard_scenario: band_whole_no = 20 * 10**6  
-        else: band_whole_no = 10 * 10**6  # 10MHz
+
+        '''total bandwidth'''
+        if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+        elif new_mimo_scenario: total_band = 40 * 10**6
+        else: total_band = 10 * 10**6
+        '''dl_mimo'''
+        if hard_scenario: dl_mimo = 3  # 原本是 64
+        elif new_mimo_scenario: dl_mimo = 4
+        else: dl_mimo = 16
+        '''UE_rx_gain'''
+        if new_mimo_scenario: rx_gain = 1
+        else: rx_gain = 20
+
         band_per = 200 * 10**3  # bandwidth allocation resolution : 1MHz / 200KHz
         qoe_weight = [1, 1, 1]
         se_weight = 0.01
-        if hard_scenario: dl_mimo = 3  # MIMO 天線數
-        else: dl_mimo = 16
         learning_windows = 2000  # 一個 episode
         UE_no = 100 if fixed_UE else 300
-        if fixed_UE: env = cellularEnv(ser_cat= ser_cat_vec, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
-        else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+
+        if fixed_UE: env = cellularEnv(
+            ser_cat= ser_cat_vec, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole = total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            UE_max_no= UE_no, 
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
+        else: env = EnvMove(
+            UE_max_no= UE_no, 
+            ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+            band_whole= total_band,
+            learning_windows= learning_windows, 
+            dl_mimo= dl_mimo, 
+            rx_gain= rx_gain,
+            hard_scenario= hard_scenario,
+            new_mimo_scenario= new_mimo_scenario)
+
         env.countReset()  # 初始化各計數器 (每個 learning window 都會重置一次)
         if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
         env.activity()  # 開始第一個 timeslot，指派各 UE readtime，並依照 readtime 決定是否要新增封包
 
         # 設定 action_space
         # action_space = action_space(10, 3) * band_per  # Granularity = 1MHz
-        action_space = action_space(50, 3) * band_per  # Granularity = 200KHz
+        if not new_mimo_scenario: action_space = action_space(50, 3) * band_per  # Granularity = 200KHz
+        else: action_space = action_space(200, 3) * band_per
         num_actions = len(action_space)
         print(num_actions)  # 36
 
@@ -775,7 +848,7 @@ for fixed in fixed_or_not:
             # 分上層 (每 1s 做一次)，做 1 次
             # Select and perform an action
             observations.append(observation.tolist())  # 整個資料結構都變成 list
-            action = get_action(model, observation, G_noise, epsilon, device)  # 根據 ε-greedy 選出 action
+            action, inference_time_ms = get_action(model, observation, G_noise, epsilon, device)  # 根據 ε-greedy 選出 action
             actions.append(action)
             env.band_ser_cat = action_space[action]  # 將各網路接片的資源分配結果存入 env
             prev_observation = observation
@@ -808,7 +881,8 @@ for fixed in fixed_or_not:
             SE.append(se[0])
             rewards.append(reward[0])
             utilities.append(utility)
-
+            
+            writer.add_scalar(tag= 'time/inference_ms', scalar_value= inference_time_ms, global_step= frame)  
             writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
             writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
             writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)

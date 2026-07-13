@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from .ReplayBuffer import ReplayBuffer
+import time
 
 class SAC_opt:
     
@@ -54,11 +55,24 @@ class SAC_opt:
     # output : np.array with shape (3)
     def select_action(self, state):
         state = torch.from_numpy(state).to(dtype= torch.float32, device= self.device).unsqueeze(dim= 0)  # shape (1, state_dim)
+
+        # 計算推論時間
+        # GPU 是非同步執行，所以計時前要先等待前面的 GPU 工作完成
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+        t0 = time.perf_counter()
+
         with torch.no_grad():
             # action : tanh(logits by actor), shape (1, action_dim)
             action, _ = self.actor.sample_action(state= state)  
             action = self.center_logits(action= action)
-        return action.cpu()[0]  # tensor with shape (action_dim)
+
+        # 等待本次 Actor 推論真正完成
+        if self.device == 'cuda':
+            torch.cuda.synchronize()
+        inference_time_ms = (time.perf_counter() - t0) * 1000.0
+        
+        return action.cpu()[0], inference_time_ms  # tensor with shape (action_dim)
     
     
     def select_action_no_tanh(self, state):
@@ -67,9 +81,12 @@ class SAC_opt:
             dtype=torch.float32,
             device=self.device
         ).unsqueeze(dim=0)
+
         with torch.no_grad():
             raw_action, _ = self.actor.sample_action_no_tanh(state=state)
             raw_action = self.center_logits(action= raw_action)
+
+        
         return raw_action.cpu()[0]  # shape (action_dim)
 
     
