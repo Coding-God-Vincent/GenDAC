@@ -17,12 +17,11 @@ import math
 
 fixed_or_not = [False]
 exps_fixed = ['exp41', 'exp42', 'exp43', 'exp44', 'exp45']
-exps_moving = ['exp44', 'exp45', 'exp46', 'exp47', 'exp48']
+exps_moving = ['exp59', 'exp60', 'exp61', 'exp62', 'exp63']
 seeds = [124, 125, 126, 127, 128]
 using_tanh = False
-
 hard_scenario = False
-new_mimo_scenario = True
+new_mimo_scenario = False
 
 for i in range(len(seeds)):
     
@@ -242,7 +241,8 @@ for i in range(len(seeds)):
             dl_mimo= dl_mimo, 
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
-            new_mimo_scenario= new_mimo_scenario)
+            new_mimo_scenario= new_mimo_scenario,
+            speed_each_slice= [3, 4, 9])
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         trajectory_length = 128  # 因為本環境沒有 terminate state，所以自己訂一個 trajectory length (batch_size 的倍數)
@@ -415,8 +415,8 @@ for i in range(len(seeds)):
             torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/actor_weights.pth')
             torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/PPO/critic_weights.pth')
         else:
-            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/actor_weights.pth')
-            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/PPO/critic_weights.pth')
+            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/PPO/actor_weights.pth')
+            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/PPO/critic_weights.pth')
 
         print("Complete")
 

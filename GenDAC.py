@@ -97,37 +97,10 @@ def cal_slack(qoe, SLA_threshold):
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # State Preprocessing : log-scale
 # state : np.array with shape (3)
-# state2 : avg queue length of each slice of the previous window, np.array with shape (3)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
-def state_preprocessing(state, 
-                        avg_queue_length= None,
-                        active_user_no= None,
-                        avg_distance= None,
-                        use_queue_state= True,  # use avg_queue_length as state
-                        use_mobility_state= False,  # use avg_user_no & avg_ue_bs_distance as state
-                        active_user_norm= 300.0,
-                        distance_norm= 40.0
-):
-    state_features = []
-    # 1. admitted demand/traffic loading
-    processed_state = np.log1p(state) / 10  # 1e^9 -> 9*ln(1) ~ 20.7, 正規化後會借於 [0, 10]
-    state_features.append(processed_state)
-    
-    # 2. Queue state : avg_queue_len
-    if use_queue_state:
-        processed_queue_state = avg_queue_length / 5.0  # avg_queue_length [0, 5]，還是正規化成 [0, 1] 跟 processed_state 量級比較接近。
-        state_features.append(processed_queue_state)
-
-    # 3. Mobility state : avg_active_ue_no, avg_active_ue_distance
-    if use_mobility_state:
-        processed_active_user_no = active_user_no / active_user_norm
-        processed_avg_distance = avg_distance / distance_norm
-        state_features.append(processed_active_user_no)
-        state_features.append(processed_avg_distance)
-    
-    real_state = np.concatenate(state_features).astype(np.float32)
-        
-    return real_state  
+def state_preprocessing(state):
+    log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+    return log_state / 10.0  # 壓到 [0~10] 之間
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -263,6 +236,42 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
     
     return utility, reward, qoe_slack, (se_base_score * se_discount)
 
+# 純 weighted sum
+# cal reward based on utility = \alpha * SE + (\betas * SSRs).sum() after a learning window
+# qoe : SSRs of 3 NS of a complete learning window, np.array, shape (3)
+# qoe_weights : list, len = 3
+# se : average SE of a timeslot of a complete learning window, np.array, shape (1)
+# se_weight : float
+# reward_clipping : clip the reward or not
+# return utility, reward, float (np.array with shape (1))
+# def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se
+#     if reward_clipping: 
+#         threshold1 = 6.5
+#         threshold2 = 4.5
+#         if utility >= threshold1: reward = 1
+#         elif utility < threshold1 and utility > threshold2: reward = 0
+#         else: reward = -1   # reward : shape ()
+#         reward = np.array([reward])
+#     else: reward = utility  # reward : shape (1)
+#     return utility, reward, _, 0
+
+# LSTM-A2C 的 reward function (SLA-aware function)
+# def cal_reward(qoe, se, qoe_weights= [1, 1, 1], se_weight= 0.01, SLA_threshold= 0.95, reward_clipping= False):
+#     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+#     if qoe[1] >= 0.98 and qoe[0] >= 0.98:
+#         if qoe[2] >= 0.95:
+#             if se[0] < 280:
+#                 reward = 4
+#             else:
+#                 reward = 4 + (se[0] - 280) * 0.1
+#         else:
+#             reward = (qoe[2] - 0.7) * 10
+#     else:
+#         reward = -5
+#     reward = np.array([reward])
+#     return utility, reward, 0, 0
+
 
 
 
@@ -270,34 +279,23 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 '''system env setup'''
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
-fixed_UE = True
-seeds = [124]
-exps = ['exp385']
+fixed_UE = False
+exps = ['exp506', 'exp507', 'exp508', 'exp509', 'exp510']
+seeds = [124, 125, 126, 127, 128]
+
+'''new_mimo_scenario 的改變有 (receiver_antennas = 4, transmitter_antennas = 64)
+    * dl_mimo = 4 (原本 16)
+    * UE_rx_power = 1 (原本 20)
+    * total bandwidth = 40 MHz (原本 10MHz)
+    * rate 計算公式那邊多了一個 beamforming 效果，即在 SNR 分母那邊乘上 transmitter_antennas (64)
+'''
+new_mimo_scenario = False
 hard_scenario = False
 DDIM = False
 
-'''State Control'''
-'''State 1'''
-# bits of previous winodw packets of each slice (ever get in queue)
-'''State 2'''
-# bits of previous winodw packets of each slice (ever get in queue), avg queue length of UEs of each slice
-use_queue_state = False
-'''State 3'''
-use_mobility_state = False
-# 新增兩個 mobility 相關的資訊，一個是各切片的 active UE no，另一個是各切片所屬的 active UE 跟 BS 之間的平均距離
-
-# ex: if use_queue_state = True, use_mobility_state = False
-# [d1, d2, d3, q1, q2, q3]
-
-# ex: if use_queue_state = True, use_mobility_state = True
-# [d1, d2, d3, q1, q2, q3, an1, an2, an3, avgd1, avgd2, avgd3]
-
-
-
-# for d, dl_mimo in enumerate(dl_mimos):
 
 for i in range(len(seeds)):
-
+    
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     set_seed(seed= seeds[i])
     if fixed_UE: print("\n================================================== Fixed_UE env ==================================================\n")
@@ -316,6 +314,7 @@ for i in range(len(seeds)):
     # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
     # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp19/tensorboard"
     # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+    
 
     if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
     else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
@@ -330,16 +329,11 @@ for i in range(len(seeds)):
 
     # env parameters
     ser_cat = ['volte', 'embb_general', 'urllc']
-    
-    # 依照使用的不同 state 去自動調整 state_dim
-    state_block_no = 1
-    if use_queue_state: state_block_no += 1
-    if use_mobility_state: state_block_no += 2
-    state_dim = len(ser_cat) * state_block_no
+    state_dim = len(ser_cat)
     action_dim = len(ser_cat)
 
     # training parameters
-    initial_max_action = 3  # will be updated during training (curriculum learning)
+    initial_max_action = 3  
     logit_low = -0.5
     logit_high = 0.5
     scale = True  # scale the action or not
@@ -455,26 +449,55 @@ for i in range(len(seeds)):
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # generate the env
     # ser_cat = ['volte', 'embb_general', 'urllc']
+
+    '''total bandwidth'''
     if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+    elif new_mimo_scenario: total_band = 40 * 10**6
     else: total_band = 10 * 10**6
+    
+    '''dl_mimo'''
+    if hard_scenario: dl_mimo = 3  # 原本是 64
+    elif new_mimo_scenario: dl_mimo = 4
+    else: dl_mimo = 16
+
+    '''UE_rx_gain'''
+    if new_mimo_scenario: rx_gain = 1
+    else: rx_gain = 20
+
+
     # J = \alpha * SE + \betas * SSRs
     qoe_weights = [1, 1, 1]  # \betas
     se_weight = 0.01  # \alpha (原論文設定為 0.01)
     learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
     prefill_steps = 3 * batch_size
-    if hard_scenario: dl_mimo = 3  # 原本是 64
-    else: dl_mimo = 16
+    
     UE_no = 100 if fixed_UE else 300
-    if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
-    else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([1, 2, 3], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
+    if fixed_UE: env = cellularEnv(
+        ser_cat= ser_cat, 
+        ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+        band_whole= total_band,
+        learning_windows= learning_windows, 
+        dl_mimo= dl_mimo, 
+        rx_gain= rx_gain,
+        UE_max_no= UE_no, 
+        hard_scenario= hard_scenario,
+        new_mimo_scenario= new_mimo_scenario)
+    else: env = EnvMove(
+        UE_max_no= UE_no, 
+        ser_prob= np.array([6, 6, 1], dtype= np.float32), 
+        band_whole= total_band,
+        learning_windows= learning_windows, 
+        dl_mimo= dl_mimo, 
+        rx_gain= rx_gain,
+        hard_scenario= hard_scenario,
+        new_mimo_scenario= new_mimo_scenario,
+        speed_each_slice= [3, 4, 9])
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
     env.activity()  # 所有 UE 開始根據其網路切片產生封包
     # observation_packets : total packets of each NSs, np.array with shape (3)
     # observation_bits : total bits of each NSs, np.array with shape (3)
-    # avg_queue_length_of_each_slices : 前一個 window 各切片所有 UE 的平均 Queue Length, np.array with shape (3)
-    observation_packets, observation_bits, avg_queue_length_of_each_slices = env.get_state2()  
-    active_user_no_of_each_slices, avg_distance_of_each_slices = env.get_mobility_state()
+    observation_packets, observation_bits = env.get_state()  
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # recording lists
@@ -592,6 +615,10 @@ for i in range(len(seeds)):
     # for frame in tqdm(range(prefill_steps, total_timesteps)):
     for frame in tqdm(range(0, total_timesteps)):
         
+        # 算一個 window 的中各切片所屬 UE 的平均 Queue length
+        # np.array with shape (3), [volte, embb, urllc]
+        avg_queue_length_of_each_slices = np.zeros(len(ser_cat))
+        
         print(f"\n\n******Episode {frame} :")
 
         # Curicculum Learning : Adjust max_action dynamically
@@ -611,7 +638,7 @@ for i in range(len(seeds)):
         # # 2. D2AC_opt.py 中有 max_action 屬性
         # d2ac_opt.max_action = current_max_action
 
-        # calculate the current lambda
+        # calculate the current lambda : 0.5~0.001
         current_lambda = get_lambda(
             current_step= frame,
             start_step= batch_size * 3,
@@ -625,17 +652,9 @@ for i in range(len(seeds)):
         d2ac_opt.recon_param = current_lambda
 
         # state is the loading (no. of packets) of each NS of the previous learning window
-        state = state_preprocessing(state= observation_bits, 
-                                    avg_queue_length= avg_queue_length_of_each_slices,
-                                    active_user_no= active_user_no_of_each_slices,
-                                    avg_distance= avg_distance_of_each_slices,
-                                    use_queue_state= use_queue_state,
-                                    use_mobility_state= use_mobility_state,
-                                    active_user_norm= float(UE_no),
-                                    distance_norm= 40
-        )  
+        state = state_preprocessing(state= observation_bits)  
         # print(f"observation_packets = {observation_packets}, observation_bits = {observation_bits}")
-        print(f"state = {state}")  # np.array with shape (ser_cat * 2)
+        # print(f"state = {state}")  # 介於 [1, 2]
 
         # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
         # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
@@ -670,9 +689,10 @@ for i in range(len(seeds)):
         for _ in range(learning_windows):
             env.scheduling()  # do lower-level allocation every timeslots
             env.provisioning()  # evaluate the SE & SSR of the current timeslot
+            avg_queue_length_of_each_slices += env.get_buffer_length_per_slice()
             env.activity()  # assign readtime & generate packet according to the readtime
-            env.record_queue_length()
             
+        avg_queue_length_of_each_slices = avg_queue_length_of_each_slices / learning_windows
         
         # calculate the reward of the current learning window
         # qoe : np.array with shape (3)
@@ -692,7 +712,7 @@ for i in range(len(seeds)):
         # use qoe & se to calculate utility as a reward
         # utility = \alpha * SE + (\betas * SSRs).sum()
         # utility, reward : np.array with shape (1)
-        utility, reward, qoe_slack, se_part = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= False)
+        utility, reward, qoe_slack, se_part = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, SLA_threshold= SLA_threshold, reward_clipping= True)
 
         # use qoe & SLA_threshold to calculate slack
         slack = cal_slack(qoe= qoe, SLA_threshold= SLA_threshold)
@@ -702,28 +722,15 @@ for i in range(len(seeds)):
         SEs.append(se.tolist()[0])  # se.tolist() -> [se]
         Rewards.append(reward.item())  
         Utilities.append(utility.item())
-        
-        next_observation_packets, next_observation_bits, next_avg_queue_length = env.get_state2()
-        next_active_user_no, next_avg_distance = env.get_mobility_state()
-        obs_next = state_preprocessing(
-            state= next_observation_bits,
-            avg_queue_length= next_avg_queue_length,
-            active_user_no= next_active_user_no,
-            avg_distance= next_avg_distance,
-            use_queue_state= use_queue_state,
-            use_mobility_state= use_mobility_state,
-            active_user_norm= float(UE_no),
-            distance_norm= 40.0
-        )
 
         # store the experience to the ReplayBuffer
         data = Batch(
-            obs= state,  # np.array with shape (6)
+            obs= state,  # np.array with shape (3)
             act = action_logit,  # np.array with shape (3)
             rew = reward.squeeze(),  # int
             terminated= False,
             truncated= False,
-            obs_next= obs_next  # np.array with shape (3)
+            obs_next= state_preprocessing(env.get_state()[1])  # np.array with shape (3)
         )
         buffer.add(data)
         
@@ -799,19 +806,9 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'avg_queue_length/volte', scalar_value= avg_queue_length_of_each_slices[0], global_step= frame)
         writer.add_scalar(tag= 'avg_queue_length/embb', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
         writer.add_scalar(tag= 'avg_queue_length/urllc', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
-        writer.add_scalar(tag= 'active_user_no/volte', scalar_value= active_user_no_of_each_slices[0], global_step=frame)
-        writer.add_scalar(tag= 'active_user_no/embb', scalar_value= active_user_no_of_each_slices[1], global_step=frame)
-        writer.add_scalar(tag= 'active_user_no/urllc', scalar_value= active_user_no_of_each_slices[2], global_step=frame)
-        writer.add_scalar(tag= 'avg_distance/volte', scalar_value= avg_distance_of_each_slices[0], global_step=frame)
-        writer.add_scalar(tag= 'avg_distance/embb', scalar_value= avg_distance_of_each_slices[1], global_step=frame)
-        writer.add_scalar(tag= 'avg_distance/urllc', scalar_value= avg_distance_of_each_slices[2], global_step=frame)
         
-        # update current state variables for next decision window
-        observation_packets = next_observation_packets
-        observation_bits = next_observation_bits
-        avg_queue_length_of_each_slices = next_avg_queue_length
-        active_user_no_of_each_slices = next_active_user_no
-        avg_distance_of_each_slices = next_avg_distance
+        # gain next state (loading of each NS in the previous learning window)
+        observation_packets, observation_bits = env.get_state()
 
         # reset all counters after each learning window
         env.countReset()
@@ -827,11 +824,11 @@ for i in range(len(seeds)):
 
     # 存下訓練好的參數以供後續產圖
     if fixed_UE:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
+        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/different_speed/GenDAC/critic_weights.pth')
+        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/different_speed/GenDAC/gdm_weights.pth')
     else:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
+        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/GenDAC/critic_weights.pth')
+        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/GenDAC/gdm_weights.pth')
 
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

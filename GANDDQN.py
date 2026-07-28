@@ -50,10 +50,10 @@ import time
 
 seeds = [124, 125, 126, 127, 128]
 exps_fixed = ['exp40', 'exp41', 'exp42', 'exp43', 'exp44']
-exps_moving = ['exp35', 'exp36', 'exp37', 'exp38', 'exp39']
+exps_moving = ['exp47', 'exp48', 'exp49', 'exp50', 'exp51']
 fixed_or_not = [False]
 hard_scenario = False
-new_mimo_scenario = True
+new_mimo_scenario = False
 
 for fixed in fixed_or_not:
 
@@ -589,27 +589,27 @@ for fixed in fixed_or_not:
 
         #=============================================================================================================================================#
         # 進入神經網路前的狀態前處理，將 state 中的值做正規化，使整個 state 各元素的均值為 0、標準差為 1
-        def state_update(state, ser_cat= ['volte', 'embb_general', 'urllc']):  # state : 當前 Learning window 各網路切片要傳送的封包個數 [d0, d1, d2]
-            discrete_state = np.zeros(state.shape)
-            # 若 state 內皆為 0，則不用進行前處理，輸入的狀態為一個零矩陣
-            # **但這邊只有有任一元素不為 0 時都不應該回傳 0，故這邊應該改為 state.sum() == 0 (已修正)
-            # if state.all() == 0:  
-            #     return discrete_state
-            if state.sum() == 0: return discrete_state
-            # 若 state 內有任一不為 0，則需做正規化
-            for ser_name in ser_cat:  # 一次考慮一種網路切片
-                ser_index = ser_cat.index(ser_name)
-                discrete_state[ser_index] = state[ser_index]
-            discrete_state = (discrete_state - discrete_state.mean()) / discrete_state.std()  # 對整個 state 做 z-score 正規化
-            return discrete_state
+        # def state_update(state, ser_cat= ['volte', 'embb_general', 'urllc']):  # state : 當前 Learning window 各網路切片要傳送的封包個數 [d0, d1, d2]
+        #     discrete_state = np.zeros(state.shape)
+        #     # 若 state 內皆為 0，則不用進行前處理，輸入的狀態為一個零矩陣
+        #     # **但這邊只有有任一元素不為 0 時都不應該回傳 0，故這邊應該改為 state.sum() == 0 (已修正)
+        #     # if state.all() == 0:  
+        #     #     return discrete_state
+        #     if state.sum() == 0: return discrete_state
+        #     # 若 state 內有任一不為 0，則需做正規化
+        #     for ser_name in ser_cat:  # 一次考慮一種網路切片
+        #         ser_index = ser_cat.index(ser_name)
+        #         discrete_state[ser_index] = state[ser_index]
+        #     discrete_state = (discrete_state - discrete_state.mean()) / discrete_state.std()  # 對整個 state 做 z-score 正規化
+        #     return discrete_state
 
         # 改用 log-scaling，這應該是最適合這種跨度大的前處理方式
         # state : np.array, shape (state_dim)
         # ser_cat : list, len = 3
         # return preprocessed state : np.array, shape (state_dim)
-        # def state_update(state):
-        #     log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
-        #     return log_state / 10.0  # 壓到 [0~10] 之間
+        def state_update(state):
+            log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+            return log_state / 10.0  # 壓到 [0~10] 之間
 
         #=============================================================================================================================================#
         # Reward function，有做 reward clipping
@@ -627,30 +627,30 @@ for fixed in fixed_or_not:
         # qoe -> 三種網路切片在整個 learning window 的 SSR
         # se  -> 整個 learning window 中的平均每個 timeslot 的 SE
         # threshold -> 當前 Learning window 對模型的利用率要求，會隨時間單調上升
-        def calc_reward(qoe, se, qoe_weights= [1, 1, 1], se_weight= 0.01):
-            # # 依照權重算出 utility
-            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
+        # def calc_reward(qoe, se, qoe_weights= [1, 1, 1], se_weight= 0.01):
+        #     # # 依照權重算出 utility
+        #     utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]  # shape (1)
             
-            # # 這演算法的 threshold 是會隨時間而單調上升的，故要限制 threshold
-            # threshold = 3.5 + 3.5 * frame / (total_timesteps / 1.25)  # 想讓他在 6800 episodes 時就要求她要到 6.5
-            # if threshold > 6.5:
-            #     threshold = 6.5
+        #     # # 這演算法的 threshold 是會隨時間而單調上升的，故要限制 threshold
+        #     # threshold = 3.5 + 3.5 * frame / (total_timesteps / 1.25)  # 想讓他在 6800 episodes 時就要求她要到 6.5
+        #     # if threshold > 6.5:
+        #     #     threshold = 6.5
 
-            # # reward clipping
-            # if utility < threshold:
-            #     reward = 0
-            # else:
-            #     reward = 1
-            # return utility, reward
+        #     # # reward clipping
+        #     # if utility < threshold:
+        #     #     reward = 0
+        #     # else:
+        #     #     reward = 1
+        #     # return utility, reward
 
-            # 照論文參數設定 (URLLC 小封包)
-            threshold1 = 6.5  # 雖然論文中設 6.5，但失敗了，設一個小一點的看看
-            threshold2 = 4.5
-            if utility[0] >= threshold1: reward = 1
-            elif utility[0] < threshold1 and utility[0] > threshold2: reward = 0
-            else: reward = -1
-            reward = np.array([reward])
-            return utility, reward
+        #     # 照論文參數設定 (URLLC 小封包)
+        #     threshold1 = 6.5  # 雖然論文中設 6.5，但失敗了，設一個小一點的看看
+        #     threshold2 = 4.5
+        #     if utility[0] >= threshold1: reward = 1
+        #     elif utility[0] < threshold1 and utility[0] > threshold2: reward = 0
+        #     else: reward = -1
+        #     reward = np.array([reward])
+        #     return utility, reward
 
         # GenDAC 的 reward function
         # reward : shape (1), utility.shape (1)
@@ -668,6 +668,24 @@ for fixed in fixed_or_not:
         #         reward = -1.5  - max(0, standard - qoe[0]) - max(0, standard - qoe[1])
         #     reward = np.array([reward])
         #     return utility, reward
+
+        # reward function3 : exponential gate
+        def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
+            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]
+            # About Qoe
+            qoe_score = np.matmul(qoe_weights, qoe.reshape((3, 1)))[0] / 10.0  # int
+            qoe_slack = max(0, SLA_threshold - qoe[0]) + max(0, SLA_threshold - qoe[1]) + max(0, SLA_threshold - qoe[2])
+            # qoe_penalty = qoe_slack * 2.0
+            qoe_penalty = 0.0
+            # About SE
+            se_base_score = (se_weight * se[0]) / 10.0
+            decay = 10
+            se_discount = math.exp(-decay * qoe_slack)  # 依照違反程度來決定來指數衰減所得 SE 的好處 (違反越多，衰減越大)
+            # final reward 
+            reward = qoe_score - qoe_penalty + (se_base_score * se_discount)
+            reward = np.array([reward])
+            
+            return utility, reward, qoe_slack, (se_base_score * se_discount)
 
 
         #=============================================================================================================================================#
@@ -720,7 +738,7 @@ for fixed in fixed_or_not:
             # GPU → CPU 不列入推論時間
             greedy_action = greedy_action_tensor.item()
                 
-            if explore: action = np.random.randint(0, model.num_acitons)
+            if explore: action = np.random.randint(0, model.num_actions)
             else: action = greedy_action
             
             return action, inference_time_ms
@@ -810,7 +828,8 @@ for fixed in fixed_or_not:
             dl_mimo= dl_mimo, 
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
-            new_mimo_scenario= new_mimo_scenario)
+            new_mimo_scenario= new_mimo_scenario,
+            speed_each_slice= [3, 4, 9])
 
         env.countReset()  # 初始化各計數器 (每個 learning window 都會重置一次)
         if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
@@ -829,7 +848,7 @@ for fixed in fixed_or_not:
         model = WGAN_GP_Agent(static_policy = False, num_input = 3, num_actions = num_actions)
         G_noise = (torch.rand(1, model.num_samples)).to(device)
         observation_packets, observation_bits = env.get_state()
-        observation = state_update(observation_packets)  # 進行狀態前處理
+        observation = state_update(observation_bits)  # 進行狀態前處理
         # print(f"obeservation shape : {observation.shape}")
 
         log = {}
@@ -869,7 +888,7 @@ for fixed in fixed_or_not:
             qoe, se = env.get_reward()  # 該 Learning window 中滿足要求傳送出去的封包 / 總封包數, 該 learning window 中平均一個 timeslot 的 SE
             # utility, reward = calc_reward(qoe, se, 3, 5.7)
             threshold = 3.5 + 1.5 * frame / (total_timesteps / 1.5)  # threshold -> 當前 learning window 模型預計要達到的標準 (隨時間單調上升)，達到才有 reward = 1
-            utility, reward = calc_reward(qoe, se, qoe_weights= qoe_weight, se_weight= se_weight)  # 根據 threshold 算出當前 learning window 得到的 reward, np.array with shape (1)
+            utility, reward, _, _ = cal_reward(qoe, se, qoe_weights= qoe_weight, se_weight= se_weight)  # 根據 threshold 算出當前 learning window 得到的 reward, np.array with shape (1)
             
             # calculate the individual se of each network slices of the current learning window
             # indivifual_se : np.array with shape (3)
@@ -911,7 +930,7 @@ for fixed in fixed_or_not:
             # 準備做下一次的上層，取出 state
             # 該 state 為上一個 learning window 中，各網路切片欲傳輸的封包總數
             observation_packets, observation_bits = env.get_state()
-            observation = state_update(observation_packets)
+            observation = state_update(observation_bits)
             
             # 將 experience 存入 replay buffer
             model.append_to_replay(prev_observation, action, reward[0], observation)
@@ -948,7 +967,7 @@ for fixed in fixed_or_not:
                 # f.close()
         
         
-        model.save_w()
+        # model.save_w()
 
         print('Complete')
 

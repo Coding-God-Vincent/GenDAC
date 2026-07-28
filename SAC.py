@@ -25,11 +25,11 @@ import math
 '''
 
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
-exps_moving = ['exp39', 'exp40', 'exp41', 'exp42', 'exp43']
+exps_moving = ['exp44', 'exp45', 'exp46', 'exp47', 'exp48']
 seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False
-new_mimo_scenario = True
+new_mimo_scenario = False
 using_tanh = True
 
 for i in range(len(seeds)):
@@ -250,7 +250,8 @@ for i in range(len(seeds)):
             dl_mimo= dl_mimo, 
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
-            new_mimo_scenario= new_mimo_scenario)
+            new_mimo_scenario= new_mimo_scenario,
+            speed_each_slice= [3, 4, 9])
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         batch_size = 32

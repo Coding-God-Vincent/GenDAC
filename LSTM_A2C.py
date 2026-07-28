@@ -12,6 +12,7 @@ from pathlib import Path
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 import torch
+import math
 
 '''原論文的 LSTM-A2C 程式碼適用舊版的 Tensorflow 寫，很多版本不相容的問題，因此用 Pytorch 重現。
 以結果上來看是有順利收斂，但效能比原論文上的好。除了更快收斂之外各項數值也更高。
@@ -20,10 +21,10 @@ import torch
 
 seeds = [124, 125, 126, 127, 128]
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
-exps_moving = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
-fixed_or_not = [False, True]
+exps_moving = ['exp47', 'exp48', 'exp49', 'exp50', 'exp51']
+fixed_or_not = [False]
 hard_scenario = False
-new_mimo_scenario = True
+new_mimo_scenario = False
 
 for fixed in fixed_or_not:
 
@@ -197,16 +198,34 @@ for fixed in fixed_or_not:
         # state : np.array, shape (state_dim)
         # ser_cat : list, len = 3
         # return preprocessed state : np.array, shape (state_dim)
-        # def state_preprocessing(state):
-        #     log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
-        #     return log_state / 10.0  # 壓到 [0~10] 之間
+        def state_preprocessing(state):
+            log_state = np.log1p(state)  # 1e^9 -> 9*ln(1) ~ 20.7
+            return log_state / 10.0  # 壓到 [0~10] 之間
         
         # 原始 state preprocessing
-        def state_preprocessing(pkt_nums):
-            mean = np.array([218.8, 5338, 293])
-            std = np.array([51, 847, 42.5])
-            state = (pkt_nums - mean) / std
-            return state
+        # def state_preprocessing(pkt_nums):
+        #     mean = np.array([218.8, 5338, 293])
+        #     std = np.array([51, 847, 42.5])
+        #     state = (pkt_nums - mean) / std
+        #     return state
+
+        # reward function3 : exponential gate
+        def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clipping= False):
+            utility = np.matmul(qoe_weights, qoe.reshape((3, 1))) + se_weight * se[0]
+            # About Qoe
+            qoe_score = np.matmul(qoe_weights, qoe.reshape((3, 1)))[0] / 10.0  # int
+            qoe_slack = max(0, SLA_threshold - qoe[0]) + max(0, SLA_threshold - qoe[1]) + max(0, SLA_threshold - qoe[2])
+            # qoe_penalty = qoe_slack * 2.0
+            qoe_penalty = 0.0
+            # About SE
+            se_base_score = (se_weight * se[0]) / 10.0
+            decay = 10
+            se_discount = math.exp(-decay * qoe_slack)  # 依照違反程度來決定來指數衰減所得 SE 的好處 (違反越多，衰減越大)
+            # final reward 
+            reward = qoe_score - qoe_penalty + (se_base_score * se_discount)
+            reward = np.array([reward])
+            
+            return utility, reward, qoe_slack, (se_base_score * se_discount)
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''創建環境並設定相關參數'''
@@ -247,7 +266,8 @@ for fixed in fixed_or_not:
             dl_mimo= dl_mimo, 
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
-            new_mimo_scenario= new_mimo_scenario)
+            new_mimo_scenario= new_mimo_scenario,
+            speed_each_slice= [3, 4, 9])
 
         '''GPU'''
         DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -294,7 +314,7 @@ for fixed in fixed_or_not:
                 env.activity()
             
             observation_packets, observation_bits = env.get_state()
-            observe = state_preprocessing(observation_packets)
+            observe = state_preprocessing(observation_bits)
             # print(observation_packets, observe)
             lstm_buffer.append(observe)
 
@@ -314,13 +334,15 @@ for fixed in fixed_or_not:
                 env.activity()
 
             observation_packets, observation_bits = env.get_state()
-            observe = state_preprocessing(observation_packets)
+            observe = state_preprocessing(observation_bits)
             lstm_buffer.pop(0)
             lstm_buffer.append(observe)
             next_state = np.vstack(lstm_buffer)  # lstm_buffer : np.array with shape (sequence_length, n_state)
             next_state = torch.from_numpy(next_state).to(device= DEVICE, dtype= torch.float32).unsqueeze(dim= 0)  # shape (1, sequence_length, n_state)
             qoe, se = env.get_reward()  # se : np.int with shape (1), qoe : np.array with shape (3)
-            utility, reward = utils.calc__reward(qoe= qoe, se= se)  # utility, reward : np.array with shape (1)
+            # utility, reward = utils.calc__reward(qoe= qoe, se= se)  # utility, reward : np.array with shape (1)
+            utility, reward, _, _ = cal_reward(qoe= qoe, se= se, qoe_weights= [1, 1, 1], se_weight= 0.01)
+
             v_values2 = Model.target_v(state= next_state).squeeze(dim= 1)  # (batch_size)
             td_target = reward[0] + gamma * v_values2
             loss = Model.learn(state= state, action= torch.tensor(action, dtype= torch.long, device= DEVICE), td_target= td_target)
@@ -364,8 +386,8 @@ for fixed in fixed_or_not:
             writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
             writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
 
-        if fixed_UE == True: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
-        else: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
+        # if fixed_UE == True: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
+        # else: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
         
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Generate Outcome Figures'''

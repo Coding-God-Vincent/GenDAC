@@ -10,11 +10,11 @@ from Utils.seed import set_seed
 
 
 exps_fixed = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
-exps_moving = ['exp22']
-seeds = [128]
+exps_moving = ['exp23', 'exp24', 'exp25', 'exp26', 'exp27']
+seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False
-new_mimo_scenario = True
+new_mimo_scenario = False
 
 for fixed in fixed_or_not:
 
@@ -102,7 +102,8 @@ for fixed in fixed_or_not:
             dl_mimo= dl_mimo, 
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
-            new_mimo_scenario= new_mimo_scenario)
+            new_mimo_scenario= new_mimo_scenario,
+            speed_each_slice= [3, 4, 9])
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Recording list'''
         QoEs = []

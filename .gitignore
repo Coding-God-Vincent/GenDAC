@@ -25,3 +25,10 @@ Graph_Generator/
 
 # 不上傳 Test
 Test/
+
+# 不上傳 Dynamic_moving_abandoned
+Dynamic_moving_abandoned/
+
+Fixed_scenario_abandoned/
+
+MlpAC_clamp_rec.py

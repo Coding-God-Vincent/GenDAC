@@ -4,7 +4,7 @@ import numpy as np
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from Env.env_fixedUE import cellularEnv  # GANDDQN 環境 (不考慮使用者移動、考慮 100 人)
-from Env.env_movingUE_dynamic import EnvMove  # LSTM 環境 (考慮使用者移動、考慮 1200 人)
+from Env.env_movingUE import EnvMove  # LSTM 環境 (考慮使用者移動、考慮 1200 人)
 from Utils.Diffusion_utils.diffusion import Diffusion
 from Utils.Diffusion_utils.D2AC_opt import D2AC_OPT
 from Utils.Diffusion_utils.D2AC_model import GDM, DoubleCritic
@@ -15,7 +15,6 @@ from pprint import pprint
 from Utils.seed import set_seed
 from Utils.Diffusion_utils.helpers import GaussianNoise
 import math
-import time  # 量推論時間
 
 
 '''Functions'''
@@ -158,23 +157,14 @@ def get_actions(state,
                 slack_based_explore, 
                 slack,
                 scale,
-                action_scale_factor
+                action_scale_factor,
+                clip_denoised= True
     ):
     state = torch.from_numpy(state).reshape(1, state_dim).to(dtype= torch.float32, device= device)
-    
-    # 量推論時間
-    if device == 'cuda': torch.cuda.synchronize()
-    t0 = time.perf_counter()
-
     # action_logit : (batch_size, action_dim)
     with torch.no_grad():
         action_logit = model(state= state)
     
-    # 量推論時間
-    if device == 'cuda': torch.cuda.synchronize()
-    inference_time_ms = (time.perf_counter() - t0) * 1000
-
-
     if slack_based_explore:
         if slack > 0.02: sigma = 0.3
         elif slack <= 0.01 and slack > 0: sigma = 0.2
@@ -196,19 +186,21 @@ def get_actions(state,
 
     # 中心化，避免 Critic 還要去分 [1, 1, 1] 跟 [1.3, 1.3, 1.3] 的差別
     action_logit = action_logit - action_logit.mean(dim= 1, keepdim= True)  # (batch_size, action_dim)
-
-    # 為了避免中心化後的內容超過 max_action，這邊要再等比例縮放
-    # 找出 abs 後最大的那個值
-    max_abs = torch.max(torch.abs(action_logit), dim= 1, keepdim= True)[0]
-    # 若有超過 max_action，那就要等比例縮放，若沒有就維持原比例
-    scale_factor = torch.clamp(max_action / (max_abs + 1e-8), max= 1.0)
-    action_logit = action_logit * scale_factor
+    
+    if clip_denoised:
+        # 為了避免中心化後的內容超過 max_action，這邊要再等比例縮放
+        # 找出 abs 後最大的那個值
+        max_abs = torch.max(torch.abs(action_logit), dim= 1, keepdim= True)[0]
+        # 若有超過 max_action，那就要等比例縮放，若沒有就維持原比例
+        scale_factor = torch.clamp(max_action / (max_abs + 1e-8), max= 1.0)
+        action_logit = action_logit * scale_factor
 
     if scale: scaled_action_logit = action_logit * action_scale_factor
+    else: scaled_action_logit = action_logit
 
     proportion = torch.nn.functional.softmax(scaled_action_logit, dim= 1).cpu().numpy().squeeze()
     real_action = total_band * proportion
-    return original_logit.cpu().numpy().squeeze(), action_logit.cpu().numpy().squeeze(), scaled_action_logit.cpu().numpy().squeeze(), real_action, inference_time_ms
+    return original_logit.cpu().numpy().squeeze(), action_logit.cpu().numpy().squeeze(), scaled_action_logit.cpu().numpy().squeeze(), real_action
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -257,8 +249,9 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 fixed_UE = False
 hard_scenario = False
 DDIM = False
-seeds = [125, 126, 127, 128]
-exps = ['exp457', 'exp458', 'exp459', 'exp460']
+seeds = [124, 125, 126, 127, 128]
+exps = ['exp486', 'exp487', 'exp488', 'exp489', 'exp490']
+
 
 
 for i in range(len(seeds)):
@@ -281,6 +274,7 @@ for i in range(len(seeds)):
     # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
     # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp19/tensorboard"
     # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
+    
 
     if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
     else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
@@ -292,7 +286,6 @@ for i in range(len(seeds)):
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
     # set the device
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    
 
     # env parameters
     ser_cat = ['volte', 'embb_general', 'urllc']
@@ -329,9 +322,10 @@ for i in range(len(seeds)):
     safe_margin = 0.99
     with_action_penalty = False
     initial_lambda = 0.5
+    clip_denoised = False
 
     # record training parameters in tensorboard
-    note = 'Dynamic service-profile remapping with replay buffer reset'
+    note = '動態調整 max_action (1->4)'
     hparams_dict = {
         'denoise step' : denoise_step,
         'actor_lr' : actor_lr,
@@ -356,7 +350,7 @@ for i in range(len(seeds)):
         denoise_steps= denoise_step,
         # 用 True 的原因為 : (原始 DDPM 也是這樣)
         # 每一步都 clamp -> 越低的機率出現那種超大的值 -> 被 clamp 的機率越低 -> 學習越穩定。
-        clip_denoised= True,  # True -> 中間的每一步的 x_0 都會被 clamp 掉
+        clip_denoised= clip_denoised,  # True -> 中間的每一步的 x_0 都會被 clamp 掉
         device= device,
         DDIM= DDIM
     ).to(device= device)
@@ -402,13 +396,14 @@ for i in range(len(seeds)):
         critic_optim= critic_optim,
         device= device,
         n_steps= 3,  
-        with_rec_loss= True,
+        with_rec_loss= False,
         recon_param= initial_lambda,
         lr_decay= False,
         max_action= initial_max_action,
         tau= tau,
         safe_margin= safe_margin,
         with_action_penalty= with_action_penalty,
+        clip_denoised= clip_denoised,
         # 以下參數會放在 **kwargs，放一些用不到但 BasePolicy 規定要放的參數
         action_space= fake_action_space
     )
@@ -427,20 +422,7 @@ for i in range(len(seeds)):
     else: dl_mimo = 16
     UE_no = 100 if fixed_UE else 300
     if fixed_UE: env = cellularEnv(ser_cat= ser_cat, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, UE_max_no= UE_no, hard_scenario= hard_scenario)
-    else: env = EnvMove(
-        UE_max_no= UE_no, 
-        ser_prob= np.array([6, 6, 1], dtype= np.float32), 
-        learning_windows= learning_windows, 
-        dl_mimo= dl_mimo, 
-        hard_scenario= hard_scenario,
-        profile_shift_interval= 3000,
-        profile_schedule= [
-            ['volte', 'embb_general', 'urllc'],
-            ['urllc', 'volte', 'embb_general'],
-            ['embb_general', 'urllc', 'volte'],
-            ['volte', 'embb_general', 'urllc']
-        ]
-    )
+    else: env = EnvMove(UE_max_no= UE_no, ser_prob= np.array([6, 6, 1], dtype= np.float32), learning_windows= learning_windows, dl_mimo= dl_mimo, hard_scenario= hard_scenario)
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
     env.activity()  # 所有 UE 開始根據其網路切片產生封包
@@ -563,32 +545,6 @@ for i in range(len(seeds)):
     current_max_action = initial_max_action
     # for frame in tqdm(range(prefill_steps, total_timesteps)):
     for frame in tqdm(range(0, total_timesteps)):
-
-        # shift profile every 3000 window
-        changed, old_order, new_order = env.update_profile_schedule(frame= frame)
-        if changed:
-            observation_packets = env.remap_observation_to_current_order(
-                observation= observation_packets,
-                old_order= old_order
-            )
-            observation_bits = env.remap_observation_to_current_order(
-                observation= observation_bits,
-                old_order= old_order
-            )
-            print(f"******[Dynamic Profile Shift] frame={frame}, {old_order} -> {new_order}******")
-            writer.add_scalar(
-                tag= 'dynamic/profile_phase',
-                scalar_value= env.current_profile_phase,
-                global_step= frame
-            )
-            writer.add_text(
-                tag= 'dynamic/profile_order',
-                text_string= str(env.ser_cat),
-                global_step= frame
-            )
-            # 重建 replay buffer，避免被舊的資料汙染
-            buffer = ReplayBuffer(size= buffer_size)
-
         
         # 算一個 window 的中各切片所屬 UE 的平均 Queue length
         # np.array with shape (3), [volte, embb, urllc]
@@ -633,7 +589,7 @@ for i in range(len(seeds)):
 
         # action_logit : Actor 輸出 torch.tensor with shape (batch_size(1), action_dim), values are within the range(-1, 1)
         # real_action : 將 logit 轉為真實動作，即各網路切片的分配到的頻寬 (Hz)。np.array with shape (3)
-        origianl_logit, action_logit, scaled_action_logit, real_action, inference_time_ms = get_actions(
+        origianl_logit, action_logit, scaled_action_logit, real_action = get_actions(
             state= state, 
             state_dim= state_dim,
             total_band= total_band, 
@@ -649,16 +605,9 @@ for i in range(len(seeds)):
             slack_based_explore= slack_based_explore,
             slack= slack,
             scale= scale,
-            action_scale_factor= action_scale_factor
+            action_scale_factor= action_scale_factor,
+            clip_denoised= clip_denoised
         )
-
-        # 存取測推論時間
-        writer.add_scalar(
-            tag= 'time/inference_ms',
-            scalar_value= inference_time_ms,
-            global_step= frame
-        )
-
         print(f"original_logits = {origianl_logit}, action_logits = {action_logit}")
         print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
         # print(f"action_logit = {action_logit}, real action = {real_action}")
@@ -745,13 +694,13 @@ for i in range(len(seeds)):
 
         # print the outcome of the current learning window
         print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}")
-        # writer.add_scalar(tag= 'idle_frame/dim0', scalar_value= urllc_UE_slot, global_step= frame)
-        # writer.add_scalar(tag= 'idle_frame/dim1', scalar_value= volte_UE_slot, global_step= frame)
-        # writer.add_scalar(tag= 'idle_frame/dim2', scalar_value= embb_UE_slot, global_step= frame)
-        # writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
-        writer.add_scalar(tag= 'pending_packets/dim0', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
-        writer.add_scalar(tag= 'pending_packets/dim1', scalar_value= env.pending_packets[1], global_step= frame)
-        writer.add_scalar(tag= 'pending_packets/dim2', scalar_value= env.pending_packets[2], global_step= frame)
+        writer.add_scalar(tag= 'idle_frame/urllc', scalar_value= urllc_UE_slot, global_step= frame)
+        writer.add_scalar(tag= 'idle_frame/volte', scalar_value= volte_UE_slot, global_step= frame)
+        writer.add_scalar(tag= 'idle_frame/embb', scalar_value= embb_UE_slot, global_step= frame)
+        writer.add_scalar(tag= 'idle_frame', scalar_value= idle_frame, global_step= frame)
+        writer.add_scalar(tag= 'pending_packets/volte', scalar_value= env.pending_packets[0], global_step= frame)  # 每一個 window 分完後各網路切片還剩下多少待傳的 buffer
+        writer.add_scalar(tag= 'pending_packets/embb_general', scalar_value= env.pending_packets[1], global_step= frame)
+        writer.add_scalar(tag= 'pending_packets/urllc', scalar_value= env.pending_packets[2], global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/perfect', scalar_value= urllc_perfect, global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/tolerable', scalar_value= urllc_tolerable, global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/fail', scalar_value= urllc_fail, global_step= frame)
@@ -760,35 +709,35 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'urllc_packets/fail_19.2KB', scalar_value= urllc_violate_packet_size[2], global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/fail_25.6KB', scalar_value= urllc_violate_packet_size[3], global_step= frame)
         writer.add_scalar(tag= 'urllc_packets/fail_32KB', scalar_value= urllc_violate_packet_size[4], global_step= frame)
-        writer.add_scalar(tag= 'action/dim0', scalar_value= real_action[0], global_step= frame)  # 分配比例
-        writer.add_scalar(tag= 'action/dim1', scalar_value= real_action[1], global_step= frame)
-        writer.add_scalar(tag= 'action/dim2', scalar_value= real_action[2], global_step= frame)
-        writer.add_scalar(tag= 'observationBits/dim0', scalar_value= observation_bits[0], global_step= frame)
-        writer.add_scalar(tag= 'observationBits/dim1', scalar_value= observation_bits[1], global_step= frame)
-        writer.add_scalar(tag= 'observationBits/dim2', scalar_value= observation_bits[2], global_step= frame)
-        writer.add_scalar(tag= 'observationPackets/dim0', scalar_value= observation_packets[0], global_step= frame)
-        writer.add_scalar(tag= 'observationPackets/dim1', scalar_value= observation_packets[1], global_step= frame)
-        writer.add_scalar(tag= 'observationPackets/dim2', scalar_value= observation_packets[2], global_step= frame)
-        writer.add_scalar(tag= 'qoe/dim0', scalar_value= qoe[0], global_step= frame)
-        writer.add_scalar(tag= 'qoe/dim1', scalar_value= qoe[1], global_step= frame)
-        writer.add_scalar(tag= 'qoe/dim2', scalar_value= qoe[2], global_step= frame)
+        writer.add_scalar(tag= 'action/volte', scalar_value= real_action[0], global_step= frame)  # 分配比例
+        writer.add_scalar(tag= 'action/embb_general', scalar_value= real_action[1], global_step= frame)
+        writer.add_scalar(tag= 'action/urllc', scalar_value= real_action[2], global_step= frame)
+        writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
+        writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
+        writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
+        writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
+        writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
+        writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
+        writer.add_scalar(tag= 'qoe/volte', scalar_value= qoe[0], global_step= frame)
+        writer.add_scalar(tag= 'qoe/embb_general', scalar_value= qoe[1], global_step= frame)
+        writer.add_scalar(tag= 'qoe/urllc', scalar_value= qoe[2], global_step= frame)
         writer.add_scalar(tag= 'se', scalar_value= se[0], global_step= frame)
-        writer.add_scalar(tag= 'individual_se/dim0', scalar_value= individual_se[0], global_step= frame)
-        writer.add_scalar(tag= 'individual_se/dim1', scalar_value= individual_se[1], global_step= frame)
-        writer.add_scalar(tag= 'individual_se/dim2', scalar_value= individual_se[2], global_step= frame)
+        writer.add_scalar(tag= 'individual_se/volte', scalar_value= individual_se[0], global_step= frame)
+        writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
+        writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
         writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
         writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
-        writer.add_scalar(tag= 'dropped_packet/dim0', scalar_value= dropped_packets[0], global_step= frame)
-        writer.add_scalar(tag= 'dropped_packet/dim1', scalar_value= dropped_packets[1], global_step= frame)
-        writer.add_scalar(tag= 'dropped_packet/dim2', scalar_value= dropped_packets[2], global_step= frame)
+        writer.add_scalar(tag= 'dropped_packet/volte', scalar_value= dropped_packets[0], global_step= frame)
+        writer.add_scalar(tag= 'dropped_packet/embb_general', scalar_value= dropped_packets[1], global_step= frame)
+        writer.add_scalar(tag= 'dropped_packet/urllc', scalar_value= dropped_packets[2], global_step= frame)
         writer.add_scalar(tag= 'max_action', scalar_value= current_max_action, global_step= frame)
         writer.add_scalar(tag= 'lambda', scalar_value= current_lambda, global_step= frame)
-        writer.add_scalar(tag= 'action_logit/dim0', scalar_value= action_logit[0], global_step= frame)
-        writer.add_scalar(tag= 'action_logit/dim1', scalar_value= action_logit[1], global_step= frame)
-        writer.add_scalar(tag= 'action_logit/dim2', scalar_value= action_logit[2], global_step= frame)
-        writer.add_scalar(tag= 'avg_queue_length/dim0', scalar_value= avg_queue_length_of_each_slices[0], global_step= frame)
-        writer.add_scalar(tag= 'avg_queue_length/dim1', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
-        writer.add_scalar(tag= 'avg_queue_length/dim2', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
+        writer.add_scalar(tag= 'action_logit/volte', scalar_value= action_logit[0], global_step= frame)
+        writer.add_scalar(tag= 'action_logit/embb_general', scalar_value= action_logit[1], global_step= frame)
+        writer.add_scalar(tag= 'action_logit/urllc', scalar_value= action_logit[2], global_step= frame)
+        writer.add_scalar(tag= 'avg_queue_length/volte', scalar_value= avg_queue_length_of_each_slices[0], global_step= frame)
+        writer.add_scalar(tag= 'avg_queue_length/embb', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
+        writer.add_scalar(tag= 'avg_queue_length/urllc', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
         
         # gain next state (loading of each NS in the previous learning window)
         observation_packets, observation_bits = env.get_state()
@@ -806,12 +755,12 @@ for i in range(len(seeds)):
     print("Complete")
 
     # 存下訓練好的參數以供後續產圖
-    # if fixed_UE:
-    #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
-    #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
-    # else:
-    #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
-    #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
+    if fixed_UE:
+        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/critic_weights.pth')
+        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/GenDAC/gdm_weights.pth')
+    else:
+        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/critic_weights.pth')
+        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/GenDAC/gdm_weights.pth')
 
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -834,7 +783,7 @@ for i in range(len(seeds)):
     plt.plot(ma_qoe_volte)
     plt.plot(ma_qoe_embb)
     plt.plot(ma_qoe_urllc)
-    plt.legend(["dim0", "dim1", "dim2"])
+    plt.legend(["VoLTE", "Video", "URLLC"])
     plt.savefig(image_path / f"QoE.png")
 
     plt.figure(4)
