@@ -29,8 +29,6 @@ Test/
 # 不上傳 Dynamic_moving_abandoned
 abandoned/
 
-
-
 MlpAC_clamp_rec.py
 
 GenDAC_no_clip.py
