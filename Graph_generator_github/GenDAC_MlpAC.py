@@ -25,23 +25,19 @@ def moving_average(data, window_size):
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Hyperparameters'''
-fixed = False
 alpha = 0.1
 color_wr = 'tab:red'
 color_wor = 'tab:green'
 seeds = [124, 125, 126, 127, 128]
+Figure = "Test_Figures"
 
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''1. Utility Learning Curve'''
 
-if fixed:
-    algo1 = "GenDAC_lam_05"
-    algo2 = "MlpAC"
-else:
-    algo1 = "GenDAC_DDPM_3"
-    algo2 = "MlpAC"
+algo1 = "GenDAC"
+algo2 = "MlpAC"
 
 colors = [color_wr, color_wor]
 algo_names = [algo1, algo2]
@@ -49,17 +45,14 @@ labels = ["GenDAC (Diffusion Actor)", "MlpAC (MLP Actor)"]
 steps = np.arange(9801)
 means_across_algos = []
 stds_across_algos = []
-if fixed: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Figures_3_v2/max_action_3/others/GenDAC_MlpAC")
-else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/Figures_3_v2/max_action_3/others/GenDAC_MlpAC")
-
+image_path = Path(f"{Figure}/GenDAC_MlpAC")
 
 # calculate std & mean of each algo
 for i, algo_name in enumerate(algo_names):
     values = []
     for j in range(len(seeds)):
         # set csv path
-        if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-        else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+        csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
         values.append(moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / "utility.csv")['Value'], window_size= 200))  # (5, 10000)
     values = np.array(values)
     means_across_algos.append(np.mean(values, axis= 0))  # (2, 10000)
@@ -95,8 +88,8 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"GenDAC_MlpAC_fixedUE_utility.svg")
-else: plt.savefig(image_path / f"GenDAC_MlpAC_moving_utility.svg")
+
+plt.savefig(image_path / f"GenDAC_MlpAC_moving_utility.svg")
 
 
 
@@ -112,8 +105,7 @@ for i, algo_name in enumerate(algo_names):
     values = []
     for j in range(len(seeds)):
         # set csv path
-        if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-        else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+        csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
         values.append(moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / "se.csv")['Value'], window_size= 200))  # (5, 10000)
     values = np.array(values)
     means_across_algos.append(np.mean(values, axis= 0))  # (2, 10000)
@@ -150,8 +142,7 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"GenDAC_MlpAC_fixedUE_SE.svg")
-else: plt.savefig(image_path / f"GenDAC_MlpAC_moving_SE.svg")
+plt.savefig(image_path / f"GenDAC_MlpAC_moving_SE.svg")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''3. SSR'''

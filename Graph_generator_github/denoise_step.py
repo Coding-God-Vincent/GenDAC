@@ -25,7 +25,6 @@ def moving_average(data, window_size):
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Hyperparameters'''
-fixed = True
 alpha = 0.1
 window = 200
 total_step = 9801
@@ -35,11 +34,13 @@ color3 = 'tab:blue'
 color4 = 'tab:orange'
 color5 = 'tab:pink'
 
+Figure = "Test_Figures"
+
 algo1 = "GenDAC_DDPM_1"
-algo2 = "GenDAC_DDPM_3"
+algo2 = "GenDAC"
 algo3 = "GenDAC_DDPM_5"
 algo4 = "GenDAC_DDPM_7"
-algo5 = "GenDAC_DDPM_9"
+
 
 # 5 steps
 # colors = [color1, color2, color3, color4, color5]
@@ -65,8 +66,7 @@ steps = np.arange(total_step)
 means_across_algos = []
 stds_across_algos = []
 
-if fixed: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Figures_3_v2/max_action_3/others/denoise_step")
-else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/Figures_3_v2/max_action_3/others/denoise_step")
+image_path = Path(f"{Figure}/denoise_step")
 
 for label in labels:
     # calculate median & q1 & q3 of each algo
@@ -74,8 +74,7 @@ for label in labels:
         values = []
         for j in range(len(seeds)):
             # set csv path
-            if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-            else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+            csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
             values.append(moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / "utility.csv")['Value'], window_size= window))  # (5, 10000)
             # print(i, len(values[-1]))
         values = np.array(values)
@@ -141,10 +140,7 @@ for current_qoe in qoes:
 
         for j in range(len(seeds)):
             # set csv path
-            if fixed:
-                csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-            else:
-                csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+            csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
 
             values.append(
                 moving_average(

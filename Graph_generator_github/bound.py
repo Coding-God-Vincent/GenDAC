@@ -37,30 +37,25 @@ color_5 = 'tab:orange'
 color_6 = 'tab:pink'
 # color_sac = 'tab:cyan'
 
-fixed = False
-Figure = "Figures_3_v2"
+Figure = "Test_Figures"
 
 algo_name1 = "GenDAC_max_1"
 algo_name2 = "GenDAC_max_2"
-if fixed: algo_name3 = "GenDAC_DDPM_3"
-else: algo_name3 = "GenDAC_DDPM_7"
+algo_name3 = "GenDAC"
 algo_name4 = "GenDAC_max_4"
 algo_name5 = "GenDAC_max_5"
-algo_name6 = "GenDAC_no_clip"
 
 
-algo_names = [algo_name1, algo_name2, algo_name3, algo_name4, algo_name5, algo_name6]
+algo_names = [algo_name1, algo_name2, algo_name3, algo_name4, algo_name5]
 # labels = ["bound = 1,", "bound = 2", "bound = 3", "bound = 4", "bound = 5"]
-labels = [r"bound = 1, $\Omega$ = 3", r"bound = 2, $\Omega$ = 1.5", r"bound = 3, $\Omega$ = 1", r"bound = 4, $\Omega$ = 1", r"bound = 5, $\Omega$ = 1", "without clipping"]
+labels = [r"bound = 1, $\Omega$ = 3", r"bound = 2, $\Omega$ = 1.5", r"bound = 3, $\Omega$ = 1", r"bound = 4, $\Omega$ = 1", r"bound = 5, $\Omega$ = 1"]
 colors = [color_1, color_2, color_3, color_4, color_5, color_6]
 seeds = [124, 125, 126, 127, 128]
 zorders = [1, 1, 1, 1, 1, 1]
 alphas = [0.15, 0.15, 0.15, 0.15, 0.15, 0.15]
 linewidths = [1, 1, 1, 1, 1, 1]
 
-
-if fixed: image_path = Path(f"/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/{Figure}/max_action_3/Test/max_action_v2")
-else: image_path = Path(f"/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/{Figure}/max_action_3/Test/max_action_v2")
+image_path = Path(f"{Figure}/bound")
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Utility'''
 
@@ -74,8 +69,7 @@ for i, algo_name in enumerate(algo_names):
     values = []
     for j in range(len(seeds)):
         # set csv path
-        if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-        else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+        csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
         values.append(moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / "utility.csv")['Value'], window_size= window_size))  # (5, 10000)
     values = np.array(values)
     means_across_algos.append(np.mean(values, axis= 0))  # (6, 10000)
@@ -112,8 +106,7 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"Utility_fixedUE.svg")
-else: plt.savefig(image_path / f"Utility_movingUE.svg")
+plt.savefig(image_path / f"Utility_movingUE.svg")
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -128,8 +121,7 @@ for i, algo_name in enumerate(algo_names):
     values = []
     for j in range(len(seeds)):
         # set csv path
-        if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-        else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+        csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
         values.append(moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / "se.csv")['Value'], window_size= 200))  # (5, 10000)
     values = np.array(values)
     means_across_algos.append(np.mean(values, axis= 0))  # (6, 10000)
@@ -167,8 +159,8 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"SE_fixedUE.svg")
-else: plt.savefig(image_path / f"SE_movingUE.svg")
+
+plt.savefig(image_path / f"SE_movingUE.svg")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''QoE'''
@@ -191,8 +183,7 @@ for current_qoe in qoes:
         values = []
         for j in range(len(seeds)):
             # set csv path
-            if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-            else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+            csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
             values.append(moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / f"{current_qoe}.csv")['Value'], window_size= window_size))  # (5, 10000)
         values = np.array(values)
         means_across_algos.append(np.mean(values, axis= 0))  # (6, 10000)
@@ -231,8 +222,8 @@ for current_qoe in qoes:
         loc= 'lower right'
     ).set_zorder(10)
 
-    if fixed: plt.savefig(image_path / f"{current_qoe}.svg")
-    else: plt.savefig(image_path / f"{current_qoe}.svg")
+    
+    plt.savefig(image_path / f"{current_qoe}.svg")
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

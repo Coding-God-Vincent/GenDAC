@@ -25,7 +25,6 @@ def moving_average(data, window_size):
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Hyperparameters'''
-fixed = False
 total_step = 9801
 
 color1 = 'tab:red'
@@ -42,9 +41,11 @@ algo3 = "GenDAC_lam_005"
 algo4 = "GenDAC_lam_001"
 algo5 = "GenDAC_lam_0005"
 algo6 = "GenDAC_lam_0001"
-algo7 = "GenDAC_DDPM_3" # "GenDAC_lam_05_0001"
+algo7 = "GenDAC"
 algo8 = "GenDAC_lam_05_0005"
 algo9 = "GenDAC_lam_05_00001"
+
+
 
 alpha = 0.1
 colors = [color1, color2, color3, color4, color5, color6, color7]
@@ -52,9 +53,8 @@ zorders = [2, 2, 1, 1, 1, 1, 1]
 window_size = 200
 seeds = [124, 125, 126, 127, 128]
 linewidth = 1
-if fixed: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Figures_3_v2/max_action_3/Test/lambda")
-else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/Figures_3_v2/max_action_3/Test/lambda")
-
+Figure = "Test_Figures"
+image_path = Path(f"{Figure}/lambda")
 
 
 # 7 algos
@@ -82,8 +82,7 @@ for label in labels:
         values = []
         for j in range(len(seeds)):
             # set csv path
-            if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-            else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+            csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
             current_values = pd.read_csv(csv_path / f"{algo_name}_csv" / "utility.csv")['Value']
             if len(current_values) > 10000 : current_values = current_values[0:10000]
             values.append(moving_average(current_values, window_size= window_size))  # (5, 10000)
@@ -127,8 +126,8 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"lambda_utility.pdf")
-else: plt.savefig(image_path / f"lambda_utility.pdf")
+
+plt.savefig(image_path / f"lambda_utility.svg")
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -145,8 +144,7 @@ for label in labels:
         values = []
         for j in range(len(seeds)):
             # set csv path
-            if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-            else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+            csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
             current_values = pd.read_csv(csv_path / f"{algo_name}_csv" / "se.csv")['Value']
             if len(current_values) > 10000 : current_values = current_values[0:10000]
             values.append(moving_average(current_values, window_size= window_size))  # (5, 10000)
@@ -188,8 +186,7 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"lambda_se.pdf")
-else: plt.savefig(image_path / f"lambda_se.pdf")
+plt.savefig(image_path / f"lambda_se.svg")
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
@@ -212,8 +209,7 @@ for current_qoe in qoes:
         values = []
 
         for j in range(len(seeds)):
-            if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-            else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+            csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
             current_values = pd.read_csv(csv_path / f"{algo_name}_csv" / f"{current_qoe}.csv")['Value']
             if len(current_values) > 10000 : current_values = current_values[0:10000]
             values.append(moving_average(current_values, window_size= window_size))  # (5, 10000)
@@ -259,8 +255,8 @@ for current_qoe in qoes:
         loc='lower right'
     ).set_zorder(10)
 
-    if fixed: plt.savefig(image_path / f"lambda_{current_qoe}.pdf")
-    else: plt.savefig(image_path / f"lambda_{current_qoe}.pdf")
+
+plt.savefig(image_path / f"lambda_{current_qoe}.svg")
 
 
 

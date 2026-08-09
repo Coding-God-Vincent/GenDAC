@@ -24,22 +24,18 @@ def moving_average(data, window_size):
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Hyperparameters'''
-fixed = False
+
 color_wr = 'tab:red'
 color_wor = 'tab:green'
 zorders = [1, 0]
-
+Figure = 'Test_Figures'
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''1. Utility Learning Curve'''
 
-if fixed:
-    algo1 = "GenDAC_lam_05"
-    algo2 = "GenDAC_lam_0"
-else:
-    algo1 = "GenDAC_different_speed"
-    algo2 = "GenDAC_lam_0"
+algo1 = "GenDAC"
+algo2 = "GenDAC_lam_0"
 
 colors = [color_wr, color_wor]
 algo_names = [algo1, algo2]
@@ -48,16 +44,14 @@ seeds = [124, 125, 126, 127, 128]
 steps = np.arange(9801)
 means_across_algos = []
 stds_across_algos = []
-if fixed: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/Figures_3_v2/max_action_3/others/w_wo_rec")
-else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/Figures_3_v2/max_action_3/others/w_wo_rec")
+image_path = Path(f"{Figure}/w_wo_rec")
 
 # calculate std & mean of each algo
 for i, algo_name in enumerate(algo_names):
     values = []
     for j in range(len(seeds)):
         # set csv path
-        if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-        else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+        csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
         values.append(moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / "utility.csv")['Value'], window_size= 200))  # (5, 10000)
     values = np.array(values)
     means_across_algos.append(np.mean(values, axis= 0))  # (2, 10000)
@@ -94,20 +88,13 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"w_wo_rec_fixedUE_utility.svg")
-else: plt.savefig(image_path / f"w_wo_rec_movingUE_utility.svg")
+
+plt.savefig(image_path / f"w_wo_rec_movingUE_utility.svg")
 
 
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''2. grad_norm_policy'''
-
-if fixed:
-    algo1 = "GenDAC_lam_001"
-    algo2 = "GenDAC_3_wo_rec"
-else:
-    algo1 = "GenDAC_lam_001"
-    algo2 = "GenDAC_3_wo_rec"
 
 colors = [color_wr, color_wor]
 algo_names = [algo1, algo2]
@@ -124,8 +111,7 @@ for i, algo_name in enumerate(algo_names):
     values = []
     for j in range(len(seeds)):
         # set csv path
-        if fixed: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
-        else: csv_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/Combine/CSVs") / f"seed_{seeds[j]}"
+        csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
         values.append(np.concatenate([np.zeros(pad_len), moving_average(pd.read_csv(csv_path / f"{algo_name}_csv" / "grad_grad_norm_policy.csv")['Value'], window_size= 200)]))  # (5, 10000)
         # values.append(np.concatenate([np.zeros(pad_len), pd.read_csv(csv_path / f"{algo_name}_csv" / "grad_grad_norm_policy.csv")['Value']]))  # (5, 10000) (without EMA)
     values = np.array(values)
@@ -167,5 +153,4 @@ plt.legend(
     loc= 'upper right'
 ).set_zorder(10)
 
-if fixed: plt.savefig(image_path / f"w_wo_rec_fixedUE_policy_grad_norm.svg")
-else: plt.savefig(image_path / f"w_wo_rec_movingUE_policy_grad_norm.svg")
+plt.savefig(image_path / f"w_wo_rec_movingUE_policy_grad_norm.svg")
