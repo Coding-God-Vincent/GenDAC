@@ -393,13 +393,13 @@ for i in range(len(seeds)):
 
             state = next_state
         
-        if fixed_UE:
-            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/actor_weights.pth')
-            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/critic_weights.pth')
-        else:
-            torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/actor_weights.pth')
-            torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/critic_weights.pth')
-        print("Complete")
+        # if fixed_UE:
+        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/actor_weights.pth')
+        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/SAC/critic_weights.pth')
+        # else:
+        #     torch.save(Actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/actor_weights.pth')
+        #     torch.save(Critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/SAC/critic_weights.pth')
+        # print("Complete")
         
 
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

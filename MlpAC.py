@@ -329,12 +329,12 @@ for i in range(len(seeds)):
             
         writer.add_hparams(hparam_dict= hparams_dict, metric_dict= {})
 
-        if fixed_UE:
-            torch.save(actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/MlpAC/actor_weights.pth')
-            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/MlpAC/critic_weights.pth')
-        else:
-            torch.save(actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/MlpAC/actor_weights.pth')
-            torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/MlpAC/critic_weights.pth')
+        # if fixed_UE:
+        #     torch.save(actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/MlpAC/actor_weights.pth')
+        #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/MlpAC/critic_weights.pth')
+        # else:
+        #     torch.save(actor.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/MlpAC/actor_weights.pth')
+        #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/MlpAC/critic_weights.pth')
 
 
         print("Complete")

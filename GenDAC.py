@@ -823,12 +823,12 @@ for i in range(len(seeds)):
     print("Complete")
 
     # 存下訓練好的參數以供後續產圖
-    if fixed_UE:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/different_speed/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/different_speed/GenDAC/gdm_weights.pth')
-    else:
-        torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/GenDAC/critic_weights.pth')
-        torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/GenDAC/gdm_weights.pth')
+    # if fixed_UE:
+    #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/different_speed/GenDAC/critic_weights.pth')
+    #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/different_speed/GenDAC/gdm_weights.pth')
+    # else:
+    #     torch.save(critic.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/GenDAC/critic_weights.pth')
+    #     torch.save(gdm.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/different_speed/GenDAC/gdm_weights.pth')
 
 
     #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#

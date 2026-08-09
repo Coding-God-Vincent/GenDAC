@@ -1,4 +1,4 @@
-# My Methodology
+# Feasibility-First Generative Diffusion-Based Deep Reinforcement Learning for Inter-Slice Radio Resource Management in RAN Slicing
 
 ## 1. Environment
 * **OS**: Ubuntu  24.04.2 LTS
@@ -17,7 +17,10 @@ cd GenDAC
 ```bash
 # Create environment with Python 3.12.3
 conda create -n GenDAC_venv python=3.12.3 -y
+```
 
+### 2.3 Use existing conda environment
+```bash
 # Activate environment
 conda activate GenDAC_venv
 
@@ -29,3 +32,21 @@ pip install -r reqirements.txt
 ```
 
 ## 3. Repository structure
+```bash
+├── envs/                  # 2D bin packing environment
+│   ├── bpp/               # Core bin packing environment  
+│   │   ├── __init__.py    # Package (bpp) setup
+│   │   ├── bpp.py         # Main BppEnv class  
+│   │   ├── bin.py         # Manage bin state
+│   │   ├── creator.py     # Create requested items
+│   │   └── item.py        # Item class definition  
+│   └── register.py        # Environment registration 
+├── fig/                   # Store training curves files, ignored 
+
+```
+
+## 4. Usage Examples
+```bash
+# Our Method
+python GenDAC.py
+```
