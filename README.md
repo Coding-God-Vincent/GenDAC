@@ -33,13 +33,9 @@ pip install -r reqirements.txt
 
 ## 3. Repository structure
 ```bash
-├── envs/                  # 2D bin packing environment
-│   ├── bpp/               # Core bin packing environment  
-│   │   ├── __init__.py    # Package (bpp) setup
-│   │   ├── bpp.py         # Main BppEnv class  
-│   │   ├── bin.py         # Manage bin state
-│   │   ├── creator.py     # Create requested items
-│   │   └── item.py        # Item class definition  
+├── Env/                  # Downlink RAN slicing environment
+│   ├── env_fixedUE.py               # Fixed-UE scenario  
+│   │   
 │   └── register.py        # Environment registration 
 ├── fig/                   # Store training curves files, ignored 
 

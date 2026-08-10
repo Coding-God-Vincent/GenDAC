@@ -21,7 +21,7 @@ import math
 
 seeds = [124, 125, 126, 127, 128]
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
-exps_moving = ['exp47', 'exp48', 'exp49', 'exp50', 'exp51']
+exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
@@ -46,8 +46,8 @@ for fixed in fixed_or_not:
         '''設定圖片 / log 路徑'''
         algo_name = 'LSTM_A2C'
         exp_name = exps[i]
-        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-        log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
+        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
 
@@ -57,7 +57,7 @@ for fixed in fixed_or_not:
         # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/LSTM_A2C") / f"{exp_name}"
-        else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/LSTM_A2C") / f"{exp_name}"
+        else: image_path = Path(f"Temp_Figures/{algo_name}") / f"{exp_name}"
         # 自行偵測資料夾，若不存在就補上，若存在也不報錯
         # parents= True -> 更上層的資料夾一併檢查補上
         # exist_ok= True -> 若已經存在也不會報錯

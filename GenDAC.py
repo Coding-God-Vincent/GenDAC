@@ -280,7 +280,7 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = False
-exps = ['exp516', 'exp517', 'exp518', 'exp519', 'exp520']
+exps = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
 seeds = [124, 125, 126, 127, 128]
 
 '''new_mimo_scenario 的改變有 (receiver_antennas = 4, transmitter_antennas = 64)
@@ -304,8 +304,8 @@ for i in range(len(seeds)):
     algo_name = 'GenDAC'
     exp_name = exps[i]
 
-    log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-    log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") /log_file / algo_name / exp_name / 'tensorboard'
+    log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+    log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
     # generate log writer
     writer = SummaryWriter(log_dir= log_path)
 
@@ -313,11 +313,13 @@ for i in range(len(seeds)):
     # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
     # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/GenDAC/exp21/tensorboard"
     # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_movingUE_env/GenDAC/exp19/tensorboard"
+    # tensorboard --logdir "Logs_github/GenDAC/exp1/tensorboard"
     # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
     
 
     if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GenDAC") / f"{exp_name}"
-    else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GenDAC") / f"{exp_name}"
+    else: image_path = Path(f"Temp_Figures/{algo_name}") / f"{exp_name}"
+    
     image_path.mkdir(parents=True, exist_ok=True)
 
     '''Main'''

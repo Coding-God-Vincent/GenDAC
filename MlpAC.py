@@ -18,9 +18,9 @@ from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
 exps_fixed = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
-exps_moving = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
+exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
 seeds = [124, 125, 126, 127, 128]
-fixed_or_not = [True, False]
+fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = True
 with_entropy = False
@@ -46,8 +46,8 @@ for i in range(len(seeds)):
         algo_name = 'MlpAC'
         exp_name = exps[i]
 
-        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-        log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
+        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
 
         # 要看 tensorboard 結果，輸入在 terminal 中他會給你一個網址
         # tensorboard --logdir "/home/super_trumpet/NCKU/Paper/My Methodology/Logs/Logs_fixedUE_env/"algo_name"/"exp_name"/tensorboard"
@@ -58,7 +58,7 @@ for i in range(len(seeds)):
         writer = SummaryWriter(log_dir= log_path)
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env") / algo_name / f"{exp_name}"
-        else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env") / algo_name / f"{exp_name}"
+        else: image_path = Path(f"Temp_Figures/{algo_name}") / f"{exp_name}"
         # 自行偵測資料夾，若不存在就補上，若存在也不報錯
         # parents= True -> 更上層的資料夾一併檢查補上
         # exist_ok= True -> 若已經存在也不會報錯
@@ -217,7 +217,7 @@ for i in range(len(seeds)):
 
         qoe_weights = [1, 1, 1]  
         se_weight = 0.01  
-        total_timesteps = 10000
+        total_timesteps = 10
         learning_windows = 2000  
         
         UE_no = 100 if fixed_UE else 300

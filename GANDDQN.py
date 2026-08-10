@@ -50,7 +50,7 @@ import time
 
 seeds = [124, 125, 126, 127, 128]
 exps_fixed = ['exp40', 'exp41', 'exp42', 'exp43', 'exp44']
-exps_moving = ['exp47', 'exp48', 'exp49', 'exp50', 'exp51']
+exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
@@ -72,7 +72,7 @@ for fixed in fixed_or_not:
         # 設定圖片 / log 路徑
         algo_name = 'GANDDQN'
         exp_name = exps[i]
-        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
