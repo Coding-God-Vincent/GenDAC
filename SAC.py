@@ -25,8 +25,10 @@ import math
 '''
 
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
-exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-seeds = [124, 125, 126, 127, 128]
+# exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+exps_moving = ['exp64']
+# seeds = [124, 125, 126, 127, 128]
+seeds = [124]
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
@@ -51,7 +53,7 @@ for i in range(len(seeds)):
         '''設定 tensorboard'''
         algo_name = 'SAC'
         exp_name = exps[i]
-        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
@@ -323,6 +325,9 @@ for i in range(len(seeds)):
             qoe, se = env.get_reward()
             # utility, reward : np.array with shape (1)
             utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight, reward_clipping= False)
+
+            throughput = env.get_throughput()  # 取得這一個 window 的 throughput (bps)
+            throughput_mbps = throughput / 1e6
             
             print(f"\ninference time (ms) = {inference_time_ms}")
             writer.add_scalar(tag= 'time/inference_ms', scalar_value= inference_time_ms, global_step= frame)
@@ -387,6 +392,7 @@ for i in range(len(seeds)):
             writer.add_scalar(tag= 'action/volte', scalar_value= action.numpy()[0], global_step= frame)  # 分配比例
             writer.add_scalar(tag= 'action/embb_general', scalar_value= action.numpy()[1], global_step= frame)
             writer.add_scalar(tag= 'action/urllc', scalar_value= action.numpy()[2], global_step= frame)
+            writer.add_scalar(tag= 'throughput', scalar_value= throughput_mbps, global_step= frame)
             
             env.countReset()  # reset 所有計數器
             if not fixed_UE: env.user_move()  # user move in LSTM-A2C env

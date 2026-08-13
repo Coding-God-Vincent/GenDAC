@@ -137,6 +137,8 @@ class EnvMove(object):
         self.active_user_no_sum = np.zeros(len(ser_cat))
         # 累計一個 window 中每個 slot 的 active UEs 平均 UE-BS distance
         self.active_user_distance_sum = np.zeros(len(ser_cat))
+        # 一個 window 中實際成功從 buffer 傳出的總 bits (為了要算 throughput)
+        self.sys_tranmitted_bits = 0.0
 
     #=======================================================================================================================================#
     # Calculating the channel loss # unit : dB 
@@ -405,7 +407,14 @@ class EnvMove(object):
         self.UE_latency[np.where((self.UE_buffer != 0) & (self.UE_cell == 1))] += self.time_subframe
         # do the packet transmission 
         for ue_id in UE_index[0]:
+            # 傳輸之前，該 UE 的 buffer 中剩餘的總 bits
+            bits_before = np.sum(self.UE_buffer[:, ue_id])
             self.UE_buffer[:, ue_id], transmitted_packets, transmitted_packets_indices = bufferUpdate(self.UE_buffer[:, ue_id], rate[ue_id], self.time_subframe)
+            # 傳輸後，該 UE 的 buffer 中剩餘的總 bits
+            bits_after = np.sum(self.UE_buffer[:, ue_id])
+            transmitted_bits = bits_before - bits_after
+            self.sys_tranmitted_bits += transmitted_bits
+
             self.pending_packets[self.ser_cat.index(self.UE_cat[ue_id])] -= transmitted_packets
             # 對 URLLC 通過的封包分等級並記錄個數
             # self.UE_cat : np.array with shape (UE_max_no)
@@ -710,6 +719,12 @@ class EnvMove(object):
 
 
     #=======================================================================================================================================#
+    '''回傳觀測用的值'''
+    def get_throughput(self):
+        throghput = self.sys_tranmitted_bits / self.learning_windows  # unit: bps
+
+
+    #=======================================================================================================================================#
     # update the UE_buffer & UE_latency after each timeslot
     # packets which haven't completely sent will resume there transmissions in the next timeslot 
     # packets which finish there transmission will be clean by setting UE_buffer[finish_packet_index] = 0 & UE_latency[finish_packet_index] = 0
@@ -779,6 +794,8 @@ class EnvMove(object):
         self.queue_length_sum = np.zeros(len(self.ser_cat))
         self.active_user_no_sum = np.zeros(len(self.ser_cat))
         self.active_user_distance_sum = np.zeros(len(self.ser_cat))
+        # 重置當前 window 的 throughput 累計值
+        self.sys_tranmitted_bits = 0.0
         
     
     #=======================================================================================================================================#

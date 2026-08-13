@@ -17,8 +17,10 @@ import math
 
 fixed_or_not = [False]
 exps_fixed = ['exp41', 'exp42', 'exp43', 'exp44', 'exp45']
-exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-seeds = [124, 125, 126, 127, 128]
+# exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+exps_moving = ['exp79']
+# seeds = [124, 125, 126, 127, 128]
+seeds = [124]
 using_tanh = False
 hard_scenario = False
 new_mimo_scenario = False
@@ -42,7 +44,7 @@ for i in range(len(seeds)):
         '''設定 tensorboard'''
         algo_name = 'PPO'
         exp_name = exps[i]
-        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
@@ -324,12 +326,16 @@ for i in range(len(seeds)):
             # reward, utility : np.array with shape (1)
             utility, reward = cal_reward(qoe= qoe, se= se, qoe_weights= qoe_weights, se_weight= se_weight)
 
+            throughput = env.get_throughput()  # 取得這一個 window 的 throughput (bps)
+            throughput_mbps = throughput / 1e6
+
             writer.add_scalar(tag= 'observationBits/volte', scalar_value= observation_bits[0], global_step= frame)
             writer.add_scalar(tag= 'observationBits/embb_general', scalar_value= observation_bits[1], global_step= frame)
             writer.add_scalar(tag= 'observationBits/urllc', scalar_value= observation_bits[2], global_step= frame)
             writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
             writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
             writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'throughput', scalar_value= throughput_mbps, global_step= frame)
 
             observation_packets, observation_bits = env.get_state()  
             next_state = state_preprocessing(observation_bits)

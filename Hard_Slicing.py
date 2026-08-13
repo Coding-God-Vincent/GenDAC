@@ -10,8 +10,10 @@ from Utils.seed import set_seed
 
 
 exps_fixed = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
-exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-seeds = [124, 125, 126, 127, 128]
+# exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+exps_moving = ['exp28']
+seeds = [124]
+# seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
@@ -37,7 +39,7 @@ for fixed in fixed_or_not:
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''設定圖片 / log 路徑'''
         algo_name = 'Hard_Slicing'
-        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_file = 'Log_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
@@ -140,6 +142,9 @@ for fixed in fixed_or_not:
             # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
             individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
 
+            throughput = env.get_throughput()  # 取得這一個 window 的 throughput (bps)
+            throughput_mbps = throughput / 1e6
+
             # print the outcome of the current learning window
             print(f"qoe = {qoe}, se = {float(se):.3f}, utility = {float(utility):.3f}")
 
@@ -171,6 +176,7 @@ for fixed in fixed_or_not:
             writer.add_scalar(tag= 'individual_se/embb_general', scalar_value= individual_se[1], global_step= frame)
             writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
             writer.add_scalar(tag= 'utility', scalar_value= utility, global_step= frame)
+            writer.add_scalar(tag= 'throughput', scalar_value= throughput_mbps, global_step= frame)
 
             observation_packets, observation_bits = env.get_state()
             

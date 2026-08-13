@@ -19,9 +19,11 @@ import math
 收斂的部分 Gemini 說是因為模型初始化的方式不同。舊版 tf 是用 Xavier Uniform，Pytorch 則是用 Kaming Uniform。
 '''
 
-seeds = [124, 125, 126, 127, 128]
+# seeds = [124, 125, 126, 127, 128]
+seeds = [124]
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
-exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+# exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+exps_moving = ['exp52']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
@@ -46,7 +48,7 @@ for fixed in fixed_or_not:
         '''設定圖片 / log 路徑'''
         algo_name = 'LSTM_A2C'
         exp_name = exps[i]
-        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
@@ -343,6 +345,9 @@ for fixed in fixed_or_not:
             # utility, reward = utils.calc__reward(qoe= qoe, se= se)  # utility, reward : np.array with shape (1)
             utility, reward, _, _ = cal_reward(qoe= qoe, se= se, qoe_weights= [1, 1, 1], se_weight= 0.01)
 
+            throughput = env.get_throughput()  # 取得這一個 window 的 throughput (bps)
+            throughput_mbps = throughput / 1e6
+            
             v_values2 = Model.target_v(state= next_state).squeeze(dim= 1)  # (batch_size)
             td_target = reward[0] + gamma * v_values2
             loss = Model.learn(state= state, action= torch.tensor(action, dtype= torch.long, device= DEVICE), td_target= td_target)
@@ -385,6 +390,7 @@ for fixed in fixed_or_not:
             writer.add_scalar(tag= 'observationPackets/volte', scalar_value= observation_packets[0], global_step= frame)
             writer.add_scalar(tag= 'observationPackets/embb_general', scalar_value= observation_packets[1], global_step= frame)
             writer.add_scalar(tag= 'observationPackets/urllc', scalar_value= observation_packets[2], global_step= frame)
+            writer.add_scalar(tag= 'throughput', scalar_value= throughput_mbps, global_step= frame)
 
         # if fixed_UE == True: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/fixed_UE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')
         # else: torch.save(Model.state_dict(), '/home/super_trumpet/NCKU/Paper/My Methodology/Params/movingUE/6_algos/LSTM_A2C/lstm_a2c_weights.pth')

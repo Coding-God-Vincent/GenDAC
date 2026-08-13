@@ -280,8 +280,11 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 # hyperparameters
 fixed_UE = False
-exps = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-seeds = [124, 125, 126, 127, 128]
+# exps = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+# seeds = [124, 125, 126, 127, 128]
+exps = ['exp531']
+seeds = [124]
+
 
 '''new_mimo_scenario 的改變有 (receiver_antennas = 4, transmitter_antennas = 64)
     * dl_mimo = 4 (原本 16)
@@ -304,7 +307,8 @@ for i in range(len(seeds)):
     algo_name = 'GenDAC'
     exp_name = exps[i]
 
-    log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+    # log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+    log_file = "Logs_movingUE_env"
     log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
     # generate log writer
     writer = SummaryWriter(log_dir= log_path)
@@ -710,6 +714,9 @@ for i in range(len(seeds)):
         volte_UE_slot, embb_UE_slot, urllc_UE_slot, urllc_violate_packet_size = env.eval_get_obs2()
         # 看一個 window 中各切片有多少 packets 被 dropped 掉
         dropped_packets = env.eval_get_obs3()  # np.array with shape (3) (volte / embb/ urllc)
+
+        throughput = env.get_throughput()  # 取得這一個 window 的 throughput (bps)
+        throughput_mbps = throughput / 1e6
         
         # use qoe & se to calculate utility as a reward
         # utility = \alpha * SE + (\betas * SSRs).sum()
@@ -763,7 +770,7 @@ for i in range(len(seeds)):
         # Critic_losses.append(loss['critic_loss'].item())
 
         # print the outcome of the current learning window
-        print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}")
+        print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, se_part = {float(se_part):.3f}, throughput = {throughput_mbps: .3f} Mbps")
         writer.add_scalar(tag= 'idle_frame/urllc', scalar_value= urllc_UE_slot, global_step= frame)
         writer.add_scalar(tag= 'idle_frame/volte', scalar_value= volte_UE_slot, global_step= frame)
         writer.add_scalar(tag= 'idle_frame/embb', scalar_value= embb_UE_slot, global_step= frame)
@@ -808,6 +815,7 @@ for i in range(len(seeds)):
         writer.add_scalar(tag= 'avg_queue_length/volte', scalar_value= avg_queue_length_of_each_slices[0], global_step= frame)
         writer.add_scalar(tag= 'avg_queue_length/embb', scalar_value= avg_queue_length_of_each_slices[1], global_step= frame)
         writer.add_scalar(tag= 'avg_queue_length/urllc', scalar_value= avg_queue_length_of_each_slices[2], global_step= frame)
+        writer.add_scalar(tag= 'throughput', scalar_value= throughput_mbps, global_step= frame)
         
         # gain next state (loading of each NS in the previous learning window)
         observation_packets, observation_bits = env.get_state()

@@ -48,9 +48,11 @@ from pathlib import Path
 import time
 
 
-seeds = [124, 125, 126, 127, 128]
+# seeds = [124, 125, 126, 127, 128]
+seeds = [124]
 exps_fixed = ['exp40', 'exp41', 'exp42', 'exp43', 'exp44']
-exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+# exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
+exps_moving = ['exp52']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
@@ -72,7 +74,7 @@ for fixed in fixed_or_not:
         # 設定圖片 / log 路徑
         algo_name = 'GANDDQN'
         exp_name = exps[i]
-        log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
         log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
@@ -889,7 +891,10 @@ for fixed in fixed_or_not:
             # utility, reward = calc_reward(qoe, se, 3, 5.7)
             threshold = 3.5 + 1.5 * frame / (total_timesteps / 1.5)  # threshold -> 當前 learning window 模型預計要達到的標準 (隨時間單調上升)，達到才有 reward = 1
             utility, reward, _, _ = cal_reward(qoe, se, qoe_weights= qoe_weight, se_weight= se_weight)  # 根據 threshold 算出當前 learning window 得到的 reward, np.array with shape (1)
-            
+
+            throughput = env.get_throughput()  # 取得這一個 window 的 throughput (bps)
+            throughput_mbps = throughput / 1e6
+
             # calculate the individual se of each network slices of the current learning window
             # indivifual_se : np.array with shape (3)
             # urllc_perfect, tolerable, fail : packet count categorized by latency for transmitted URLLC traffic of the current learning window, int
@@ -926,6 +931,7 @@ for fixed in fixed_or_not:
             writer.add_scalar(tag= 'individual_se/urllc', scalar_value= individual_se[2], global_step= frame)
             writer.add_scalar(tag= 'reward', scalar_value= reward[0], global_step= frame)
             writer.add_scalar(tag= 'utility', scalar_value= utility[0], global_step= frame)
+            writer.add_scalar(tag= 'throughput', scalar_value= throughput_mbps, global_step= frame)
 
             # 準備做下一次的上層，取出 state
             # 該 state 為上一個 learning window 中，各網路切片欲傳輸的封包總數
