@@ -33,9 +33,6 @@ pip install -r reqirements.txt
 
 ## 3. Repository structure
 ```bash
-## 3. Repository structure
-
-```bash
 ├── Env/                              # Downlink RAN slicing simulation environments
 │   ├── env_fixedUE.py                # Single-BS RAN slicing environment with fixed UEs
 │   └── env_movingUE.py               # Single-BS RAN slicing environment with UE mobility
@@ -140,8 +137,6 @@ pip install -r reqirements.txt
 └── README.md                         # Project documentation
 ```
 
-
-```
 
 ## 4. Usage Examples
 ```bash
