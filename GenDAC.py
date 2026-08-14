@@ -294,6 +294,7 @@ seeds = [124]
 '''
 new_mimo_scenario = False
 hard_scenario = False
+nr_oriented_scenario = True  # mu = 1, total_band = 20MHz, RB_band = 360kHz, window = 200 slot (self-defined)
 DDIM = False
 
 
@@ -457,7 +458,7 @@ for i in range(len(seeds)):
     # ser_cat = ['volte', 'embb_general', 'urllc']
 
     '''total bandwidth'''
-    if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+    if hard_scenario or nr_oriented_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
     elif new_mimo_scenario: total_band = 40 * 10**6
     else: total_band = 10 * 10**6
     
@@ -470,11 +471,18 @@ for i in range(len(seeds)):
     if new_mimo_scenario: rx_gain = 1
     else: rx_gain = 20
 
+    if nr_oriented_scenario: 
+        learning_windows = 200
+        RB_band = 360 * 10 ** 3
+    else:
+        learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
+        RB_band = 180 * 10 ** 3
+
 
     # J = \alpha * SE + \betas * SSRs
     qoe_weights = [1, 1, 1]  # \betas
     se_weight = 0.01  # \alpha (原論文設定為 0.01)
-    learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
+    
     prefill_steps = 3 * batch_size
     
     UE_no = 100 if fixed_UE else 300
@@ -497,7 +505,8 @@ for i in range(len(seeds)):
         rx_gain= rx_gain,
         hard_scenario= hard_scenario,
         new_mimo_scenario= new_mimo_scenario,
-        speed_each_slice= [3, 4, 9])
+        speed_each_slice= [3, 4, 9],
+        RB_band= RB_band)
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
     env.activity()  # 所有 UE 開始根據其網路切片產生封包
