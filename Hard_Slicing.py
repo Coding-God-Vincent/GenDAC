@@ -11,12 +11,13 @@ from Utils.seed import set_seed
 
 exps_fixed = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp28']
+exps_moving = ['exp29']
 seeds = [124]
 # seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
+nr_oriented_scenario = True
 
 for fixed in fixed_or_not:
 
@@ -69,7 +70,7 @@ for fixed in fixed_or_not:
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
         '''total bandwidth'''
-        if hard_scenario: total_band = 20  # 20MHz (original 10 MHz)
+        if hard_scenario or nr_oriented_scenario: total_band = 20  # 20MHz (original 10 MHz)
         elif new_mimo_scenario: total_band = 40
         else: total_band = 10
         '''dl_mimo'''
@@ -80,9 +81,15 @@ for fixed in fixed_or_not:
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
 
+        if nr_oriented_scenario: 
+            learning_windows = 200
+            RB_band = 360 * 10 ** 3
+        else:
+            learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
+            RB_band = 180 * 10 ** 3
+
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
-        learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
         # FixedUE 原論文 ser_prob : 6:6:1
         # MovingUE 原論文 ser_prob : 1:2:3
@@ -105,7 +112,8 @@ for fixed in fixed_or_not:
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
-            speed_each_slice= [3, 4, 9])
+            speed_each_slice= [3, 4, 9],
+            RB_band= RB_band)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Recording list'''
         QoEs = []

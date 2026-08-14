@@ -26,13 +26,14 @@ import math
 
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp64']
+exps_moving = ['exp65']
 # seeds = [124, 125, 126, 127, 128]
 seeds = [124]
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
 using_tanh = True
+nr_oriented_scenario = True
 
 for i in range(len(seeds)):
 
@@ -220,7 +221,7 @@ for i in range(len(seeds)):
         se_weight = 0.01
         
         '''total bandwidth'''
-        if hard_scenario : total_band = 20 * 10**6  # unit : MHz
+        if hard_scenario or nr_oriented_scenario : total_band = 20 * 10**6  # unit : MHz
         elif new_mimo_scenario: total_band = 40 * 10**6
         else: total_band = 10 * 10**6
         '''dl_mimo'''
@@ -231,8 +232,14 @@ for i in range(len(seeds)):
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
 
+        if nr_oriented_scenario: 
+            learning_windows = 200
+            RB_band = 360 * 10 ** 3
+        else:
+            learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
+            RB_band = 180 * 10 ** 3
+
         total_timesteps = 10000
-        learning_windows = 2000
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(
             ser_cat= ser_cat, 
@@ -253,7 +260,8 @@ for i in range(len(seeds)):
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
-            speed_each_slice= [3, 4, 9])
+            speed_each_slice= [3, 4, 9],
+            RB_band= RB_band)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         batch_size = 32

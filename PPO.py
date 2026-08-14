@@ -18,12 +18,13 @@ import math
 fixed_or_not = [False]
 exps_fixed = ['exp41', 'exp42', 'exp43', 'exp44', 'exp45']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp79']
+exps_moving = ['exp80']
 # seeds = [124, 125, 126, 127, 128]
 seeds = [124]
 using_tanh = False
 hard_scenario = False
 new_mimo_scenario = False
+nr_oriented_scenario = True
 
 for i in range(len(seeds)):
     
@@ -211,7 +212,7 @@ for i in range(len(seeds)):
         se_weight = 0.01
 
         '''total bandwidth'''
-        if hard_scenario : total_band = 20 * 10**6  # unit : MHz
+        if hard_scenario or nr_oriented_scenario : total_band = 20 * 10**6  # unit : MHz
         elif new_mimo_scenario: total_band = 40 * 10**6
         else: total_band = 10 * 10**6
         '''dl_mimo'''
@@ -222,8 +223,15 @@ for i in range(len(seeds)):
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
 
+        if nr_oriented_scenario: 
+            learning_windows = 200
+            RB_band = 360 * 10 ** 3
+        else: 
+            learning_windows = 2000
+            RB_band = 180 * 10 ** 3
+
         total_timesteps = 10000
-        learning_windows = 2000
+        
         UE_no = 100 if fixed_UE else 300
         if fixed_UE: env = cellularEnv(
             ser_cat= ser_cat, 
@@ -244,7 +252,8 @@ for i in range(len(seeds)):
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
-            speed_each_slice= [3, 4, 9])
+            speed_each_slice= [3, 4, 9],
+            RB_band= RB_band)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         trajectory_length = 128  # 因為本環境沒有 terminate state，所以自己訂一個 trajectory length (batch_size 的倍數)

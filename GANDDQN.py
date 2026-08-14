@@ -52,10 +52,11 @@ import time
 seeds = [124]
 exps_fixed = ['exp40', 'exp41', 'exp42', 'exp43', 'exp44']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp52']
+exps_moving = ['exp53']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
+nr_oriented_scenario = True
 
 for fixed in fixed_or_not:
 
@@ -806,10 +807,16 @@ for fixed in fixed_or_not:
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
 
+        if nr_oriented_scenario: 
+            learning_windows = 200
+            RB_band = 360 * 10 ** 3
+        else:
+            learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
+            RB_band = 180 * 10 ** 3
+
         band_per = 200 * 10**3  # bandwidth allocation resolution : 1MHz / 200KHz
         qoe_weight = [1, 1, 1]
         se_weight = 0.01
-        learning_windows = 2000  # 一個 episode
         UE_no = 100 if fixed_UE else 300
 
         if fixed_UE: env = cellularEnv(
@@ -831,7 +838,8 @@ for fixed in fixed_or_not:
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
-            speed_each_slice= [3, 4, 9])
+            speed_each_slice= [3, 4, 9],
+            RB_band= RB_band)
 
         env.countReset()  # 初始化各計數器 (每個 learning window 都會重置一次)
         if not fixed_UE: env.user_move()  # user move in LSTM-A2C env

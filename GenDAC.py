@@ -282,7 +282,7 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 fixed_UE = False
 # exps = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
 # seeds = [124, 125, 126, 127, 128]
-exps = ['exp531']
+exps = ['exp532']
 seeds = [124]
 
 
@@ -692,7 +692,7 @@ for i in range(len(seeds)):
             action_scale_factor= action_scale_factor
         )
         print(f"original_logits = {origianl_logit}, action_logits = {action_logit}")
-        print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / 10000000}")
+        print(f"scaled_action_logit = {scaled_action_logit}, proportion = {real_action / total_band}")
         # print(f"action_logit = {action_logit}, real action = {real_action}")
         # print(f"action = {real_action}")
         

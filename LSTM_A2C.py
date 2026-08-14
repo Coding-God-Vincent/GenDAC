@@ -23,10 +23,11 @@ import math
 seeds = [124]
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp52']
+exps_moving = ['exp53']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
+nr_oriented_scenario = True
 
 for fixed in fixed_or_not:
 
@@ -246,9 +247,16 @@ for fixed in fixed_or_not:
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
 
+        if nr_oriented_scenario: 
+            learning_windows = 200
+            RB_band = 360 * 10 ** 3
+        else:
+            learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
+            RB_band = 180 * 10 ** 3
+
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
-        learning_windows = 2000
+        
         UE_no = 100 if fixed_UE else 300  # 原本 LSTM-A2C 那邊設 1200 應該是真的沒有 buffer reset，因為 1200 的話要跑超久。這邊為了加速我把人數訂為跟 GANDDQN 那邊一樣 100 人
         if fixed_UE: env = cellularEnv(
             ser_cat= ser_cat, 
@@ -269,7 +277,8 @@ for fixed in fixed_or_not:
             rx_gain= rx_gain,
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
-            speed_each_slice= [3, 4, 9])
+            speed_each_slice= [3, 4, 9],
+            RB_band= RB_band)
 
         '''GPU'''
         DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
