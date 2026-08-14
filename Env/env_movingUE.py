@@ -50,11 +50,13 @@ class EnvMove(object):
                  hard_scenario = False,
                  new_mimo_scenario = False,
                  tx_antennas = 64,
-                 speed_each_slice = [1, 2, 8]
+                 speed_each_slice = [1, 2, 8],
+                 RB_band = 180 * 10**3
     ):
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
         self.BS_radius = BS_radius
+        self.RB_band = RB_band
         self.hard_scenario = hard_scenario
         self.new_mimo_scenario = new_mimo_scenario
         self.tx_antennas = tx_antennas
@@ -257,9 +259,9 @@ class EnvMove(object):
                 # if no active users then do nothing
                 if UE_Active_No != 0:
                     # Step1 : divide the allocated band into several RBs (1RB = 180kHz)
-                    RB_No = band_ser_cat[i] // (180 * 10 ** 3)  
+                    RB_No = band_ser_cat[i] // (self.RB_band)  
                     RB_round = RB_No // UE_Active_No   
-                    self.UE_band[UE_index] += 180 * 10 ** 3 * RB_round  # allocate the RBs among all active users equally
+                    self.UE_band[UE_index] += self.RB_band * RB_round  # allocate the RBs among all active users equally
                     # Step2 : allocate the not evenly RBs by RR starts from ser_schedu_ind[i]
                     RB_rem_no = int(RB_No - RB_round * UE_Active_No)  # no. of not evenly divided RBs
                     left_no = np.where(UE_index > self.ser_schedu_ind[i])[0].size  # no. of remaining active users (starts from ser_schedu_ind[i])
@@ -267,12 +269,12 @@ class EnvMove(object):
                         UE_act_index = UE_index[np.where(np.greater_equal(UE_index, self.ser_schedu_ind[i]))]
                         UE_act_index = UE_act_index[:RB_rem_no]
                         if UE_act_index.size != 0:
-                            self.UE_band[UE_act_index] += 180 * 10 ** 3
+                            self.UE_band[UE_act_index] += self.RB_band
                             self.ser_schedu_ind[i] = UE_act_index[-1] + 1
                     else:  # roll back to the front
                         UE_act_index_par1 = UE_index[np.where(UE_index > self.ser_schedu_ind[i])]
                         UE_act_index_par2 = UE_index[0:RB_rem_no - left_no]
-                        self.UE_band[np.hstack((UE_act_index_par1, UE_act_index_par2))] += 180 * 10 ** 3
+                        self.UE_band[np.hstack((UE_act_index_par1, UE_act_index_par2))] += self.RB_band
                         self.ser_schedu_ind[i] = UE_act_index_par2[-1] + 1
 
         # Method2 : RR_nons
@@ -287,9 +289,9 @@ class EnvMove(object):
             UE_Active_No = len(UE_index)
             if UE_Active_No != 0:
                 # Step1 : divides the band into several RBs and allocate them equally among all active users among all NSs
-                RB_No = band_whole // (180 * 10 ** 3)
+                RB_No = band_whole // (self.RB_band)
                 RB_round = RB_No // UE_Active_No
-                self.UE_band[UE_index] += 180 * 10 ** 3 * RB_round
+                self.UE_band[UE_index] += self.RB_band * RB_round
                 # Step2 : allocate the not evenly RBs by RR starts from ser_schedu_ind[i]
                 RB_rem_no = RB_No % UE_Active_No
                 left_no = np.where(UE_index > self.ser_schedu_ind)[0].size
@@ -297,12 +299,12 @@ class EnvMove(object):
                     UE_act_index = UE_index[np.where(np.logical_and(np.greater_equal(UE_index, self.ser_schedu_ind),
                                                                     np.less(UE_index, RB_rem_no + self.ser_schedu_ind)))]
                     if UE_act_index.size != 0:
-                        self.UE_band[UE_act_index] += 180 * 10 ** 3
+                        self.UE_band[UE_act_index] += self.RB_band
                         self.ser_schedu_ind = UE_act_index[-1] + 1
                 else:  # need to roll back
                     UE_act_index_par1 = UE_index[np.where(UE_index > self.ser_schedu_ind)]
                     UE_act_index_par2 = UE_index[0:RB_rem_no - left_no]
-                    self.UE_band[np.hstack((UE_act_index_par1, UE_act_index_par2))] += 180 * 10 ** 3
+                    self.UE_band[np.hstack((UE_act_index_par1, UE_act_index_par2))] += self.RB_band
                     self.ser_schedu_ind = UE_act_index_par2[-1] + 1
 
             # reset band_ser_cat every window
@@ -322,7 +324,7 @@ class EnvMove(object):
         elif self.schedu_method == 'round_robin_reuse_rem' :
             ser_cat = len(self.ser_cat)
             band_ser_cat = self.band_ser_cat
-            RB_band = 180 * 10 ** 3
+            RB_band = self.RB_band
 
             # collect the bandwidth remainder smaller than 1 RB
             unused_band_rem = 0
@@ -721,7 +723,8 @@ class EnvMove(object):
     #=======================================================================================================================================#
     '''回傳觀測用的值'''
     def get_throughput(self):
-        throghput = self.sys_tranmitted_bits / self.learning_windows  # unit: bps
+        throughput = self.sys_tranmitted_bits / self.learning_windows  # unit: bps
+        return throughput
 
 
     #=======================================================================================================================================#

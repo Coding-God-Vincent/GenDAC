@@ -49,7 +49,7 @@ for fixed in fixed_or_not:
         algo_name = 'LSTM_A2C'
         exp_name = exps[i]
         log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-        log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
+        log_path = Path(f"Logs/{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
 
@@ -358,7 +358,7 @@ for fixed in fixed_or_not:
             individual_se, urllc_perfect, urllc_tolerable, urllc_fail, idle_frame = env.eval_get_obs()
 
             # print the outcome of the current learning window
-            print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, loss = {loss:.3f}")
+            print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, loss = {loss:.3f}, throughput = {throughput_mbps: .3f} Mbps")
 
             QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
             SEs.append(se.tolist()[0])  # se.tolist() -> [se]

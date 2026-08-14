@@ -45,7 +45,7 @@ for i in range(len(seeds)):
         algo_name = 'PPO'
         exp_name = exps[i]
         log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-        log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
+        log_path = Path(f"Logs/{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
 
@@ -384,7 +384,7 @@ for i in range(len(seeds)):
                 
             
             # print the outcome of the current learning window
-            print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}")
+            print(f"qoe = {qoe}, se = {float(se[0]):.3f}, reward = {float(reward[0]):.3f}, utility = {float(utility[0]):.3f}, throughput = {throughput_mbps: .3f} Mbps")
             
             # Record the values of the current learning window
             QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]

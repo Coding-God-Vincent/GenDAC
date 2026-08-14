@@ -75,7 +75,7 @@ for fixed in fixed_or_not:
         algo_name = 'GANDDQN'
         exp_name = exps[i]
         log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-        log_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Logs") / log_file / algo_name / exp_name / 'tensorboard'
+        log_path = Path(f"Logs/{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
 
@@ -85,7 +85,7 @@ for fixed in fixed_or_not:
         # 程式跑下去之後就可以用另一個 terminal 開啟 tensorboard，接著你任何時候想看進度就去點一下 tensorboard 頁面的重置就好了
 
         if fixed_UE: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_fixedUE_env/GANDDQN") / f"{exp_name}"
-        else: image_path = Path("/home/super_trumpet/NCKU/Paper/My Methodology/Outcomes/Outcome_movingUE_env/GANDDQN") / f"{exp_name}"
+        else: image_path = image_path = Path(f"Temp_Figures/{algo_name}") / f"{exp_name}"
         # 自行偵測資料夾，若不存在就補上，若存在也不報錯
         # parents= True -> 更上層的資料夾一併檢查補上
         # exist_ok= True -> 若已經存在也不會報錯
@@ -951,7 +951,7 @@ for fixed in fixed_or_not:
             if not fixed_UE: env.user_move()
             
             
-            print(f'\n\nepisode: {frame}, epsilon: {epsilon:.3f}, utility: {utility}, reward: {reward[0]:.5f}')
+            print(f'\n\nepisode: {frame}, epsilon: {epsilon:.3f}, utility: {utility}, reward: {reward[0]:.5f}, throughput = {throughput_mbps: .3f} Mbps')
             print(f'qoe: volte = {qoe[0]}, video = {qoe[1]}, urllc = {qoe[2]}')
             print('bandwidth-allocation solution', action_space[action])
 

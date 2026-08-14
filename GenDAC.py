@@ -309,7 +309,7 @@ for i in range(len(seeds)):
 
     # log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
     log_file = "Logs_movingUE_env"
-    log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
+    log_path = Path(f"Logs/{log_file}/{algo_name}/{exp_name}/tensorboard")
     # generate log writer
     writer = SummaryWriter(log_dir= log_path)
 

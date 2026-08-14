@@ -39,8 +39,8 @@ for fixed in fixed_or_not:
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''設定圖片 / log 路徑'''
         algo_name = 'Hard_Slicing'
-        log_file = 'Log_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
-        log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
+        log_file = 'Logs_movingUE_env' if fixed_UE == False else 'Logs_fixedUE_env'
+        log_path = Path(f"Logs/{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
 
@@ -146,7 +146,7 @@ for fixed in fixed_or_not:
             throughput_mbps = throughput / 1e6
 
             # print the outcome of the current learning window
-            print(f"qoe = {qoe}, se = {float(se):.3f}, utility = {float(utility):.3f}")
+            print(f"qoe = {qoe}, se = {float(se):.3f}, utility = {float(utility):.3f}, throughput = {throughput_mbps: .3f} Mbps")
 
             QoEs.append(qoe.tolist())  # qoe.tolist() -> [qoe1, qoe2, qoe3]
             SEs.append(se.tolist()[0])  # se.tolist() -> [se]
