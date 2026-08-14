@@ -796,7 +796,7 @@ for fixed in fixed_or_not:
         ser_cat_vec = ['volte', 'embb_general', 'urllc']
 
         '''total bandwidth'''
-        if hard_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
+        if hard_scenario or nr_oriented_scenario: total_band = 20 * 10**6  # 20MHz (original 10 MHz)
         elif new_mimo_scenario: total_band = 40 * 10**6
         else: total_band = 10 * 10**6
         '''dl_mimo'''
@@ -847,8 +847,8 @@ for fixed in fixed_or_not:
 
         # 設定 action_space
         # action_space = action_space(10, 3) * band_per  # Granularity = 1MHz
-        if not new_mimo_scenario: action_space = action_space(50, 3) * band_per  # Granularity = 200KHz
-        else: action_space = action_space(200, 3) * band_per
+        band_unit = int(total_band // band_per)
+        action_space = action_space(band_unit, 3) * band_per
         num_actions = len(action_space)
         print(num_actions)  # 36
 

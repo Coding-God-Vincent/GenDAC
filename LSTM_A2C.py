@@ -234,7 +234,7 @@ for fixed in fixed_or_not:
         '''創建環境並設定相關參數'''
         ser_cat = ['volte', 'embb_general', 'urllc']
         '''total bandwidth'''
-        if hard_scenario: total_band = 20  # 20MHz (original 10 MHz)
+        if hard_scenario or nr_oriented_scenario: total_band = 20  # 20MHz (original 10 MHz)
         elif new_mimo_scenario: total_band = 40
         else: total_band = 10
         
