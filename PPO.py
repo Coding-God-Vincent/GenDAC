@@ -24,7 +24,8 @@ seeds = [124]
 using_tanh = False
 hard_scenario = False
 new_mimo_scenario = False
-nr_oriented_scenario = True
+nr_oriented_scenario = False
+uniform_PSD_scenario = True
 
 for i in range(len(seeds)):
     
@@ -253,7 +254,8 @@ for i in range(len(seeds)):
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
             speed_each_slice= [3, 4, 9],
-            RB_band= RB_band)
+            RB_band= RB_band,
+            uniform_PSD_scenario= uniform_PSD_scenario)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         trajectory_length = 128  # 因為本環境沒有 terminate state，所以自己訂一個 trajectory length (batch_size 的倍數)

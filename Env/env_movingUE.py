@@ -404,6 +404,12 @@ class EnvMove(object):
         rx_power = 10 ** ((self.BS_tx_power - self.chan_loss + self.UE_rx_gain) / 10)  
         if self.new_mimo_scenario: rx_power = rx_power * self.tx_antennas
         rx_power = rx_power.reshape(1, -1)[0]  # output_shape change from (UE_max_no, 1) to (1, UE_max_no) and extract the (UE_max_no) part by [0]
+
+        # Uniform PSD 
+        if self.uniform_PSD_scenario:
+            power_ratio = self.UE_band / self.band_whole
+            rx_power = rx_power * power_ratio
+        
         # calculate the data transmission rate of each user according to Shannon Theory
         rate = np.zeros(self.UE_max_no)  # unit : bit/s
         rate[UE_index] = self.UE_band[UE_index] * np.log2(1 + rx_power[UE_index] / (10 ** (self.noise_PSD / 10) * self.UE_band[UE_index])) * self.dl_mimo
