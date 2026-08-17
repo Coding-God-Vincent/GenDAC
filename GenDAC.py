@@ -294,7 +294,8 @@ seeds = [124]
 '''
 new_mimo_scenario = False
 hard_scenario = False
-nr_oriented_scenario = True  # mu = 1, total_band = 20MHz, RB_band = 360kHz, window = 200 slot (self-defined)
+nr_oriented_scenario = False  # mu = 1, total_band = 20MHz, RB_band = 360kHz, window = 200 slot (self-defined)
+uniform_PSD_scenario = True
 DDIM = False
 
 
@@ -506,7 +507,8 @@ for i in range(len(seeds)):
         hard_scenario= hard_scenario,
         new_mimo_scenario= new_mimo_scenario,
         speed_each_slice= [3, 4, 9],
-        RB_band= RB_band)
+        RB_band= RB_band,
+        uniform_PSD_scenario= uniform_PSD_scenario)
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()  # user move in LSTM-A2C env
     env.activity()  # 所有 UE 開始根據其網路切片產生封包

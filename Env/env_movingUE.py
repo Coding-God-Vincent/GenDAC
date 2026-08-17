@@ -51,8 +51,10 @@ class EnvMove(object):
                  new_mimo_scenario = False,
                  tx_antennas = 64,
                  speed_each_slice = [1, 2, 8],
-                 RB_band = 180 * 10**3
+                 RB_band = 180 * 10**3,
+                 uniform_PSD_scenario= False
     ):
+        self.uniform_PSD_scenario = uniform_PSD_scenario
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
         self.BS_radius = BS_radius
