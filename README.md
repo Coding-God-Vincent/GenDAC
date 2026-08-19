@@ -35,7 +35,7 @@ conda activate GenDAC_venv
 conda install pytorch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu128
 
 # Install other dependencies
-pip install -r reqirements.txt
+pip install -r requirements.txt
 ```
 
 ## 3. Repository structure
@@ -156,5 +156,63 @@ python Hard_Slicing.py
 python PPO.py
 python SAC.py
 ```
+
+## 5. Real-Time Training Monitoring with TensorBoard
+
+TensorBoard can be used to monitor the training progress in real time. The required TensorBoard package is already included in `requirements.txt`.
+
+### 5.1 Start Training
+
+For example, start training GenDAC in one terminal:
+
+```bash
+python GenDAC.py
+```
+
+During training, TensorBoard event files are automatically generated under:
+
+```text
+Logs_github/<algorithm>/<experiment>/tensorboard
+```
+
+For example, the TensorBoard logs of GenDAC follow the structure:
+
+```text
+Logs_github/GenDAC/<experiment>/tensorboard
+```
+
+### 5.2 Monitor Training Progress
+
+While the training script is running, open another terminal in the project root directory and run TensorBoard for the corresponding experiment:
+
+```bash
+tensorboard --logdir Logs_github/GenDAC/<experiment>/tensorboard
+```
+
+Replace `<experiment>` with the experiment name defined in the training script. For example:
+
+```bash
+tensorboard --logdir Logs_github/GenDAC/exp1/tensorboard
+```
+
+TensorBoard will provide a local URL, typically: `http://localhost:6006/`
+
+Open the URL in a web browser to monitor the training metrics while the experiment is running. The displayed curves can be refreshed during training to inspect the latest progress.
+
+
+### 5.3 Training Metrics
+
+The **Scalars** tab in TensorBoard provides various training and system metrics, including:
+
+* Actor, policy, reconstruction, and critic losses
+* Slice Satisfaction Rate (SSR) for VoLTE, eMBB, and URLLC
+* Spectral Efficiency (SE)
+* System utility and reward
+* Inter-slice resource allocation actions
+* Action logits
+* Average queue length of each slice
+* System throughput
+
+These metrics can be used to observe the learning behavior and performance of the algorithm throughout the training process.
 
 
