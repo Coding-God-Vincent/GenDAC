@@ -163,3 +163,8 @@ plt.savefig(image_path / f"SE.svg")
 
 
 
+
+
+
+
+

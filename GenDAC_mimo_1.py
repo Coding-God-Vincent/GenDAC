@@ -282,8 +282,8 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 fixed_UE = False
 # exps = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
 # seeds = [124, 125, 126, 127, 128]
-exps = ['exp534', 'exp535', 'exp536', 'exp537']
-seeds = [125, 126, 127, 128]
+exps = ['exp538']
+seeds = [124]
 
 
 '''new_mimo_scenario 的改變有 (receiver_antennas = 4, transmitter_antennas = 64)
@@ -294,7 +294,7 @@ seeds = [125, 126, 127, 128]
 '''
 new_mimo_scenario = False
 hard_scenario = False
-nr_oriented_scenario = True  # mu = 1, total_band = 20MHz, RB_band = 360kHz, window = 200 slot (self-defined)
+nr_oriented_scenario = False  # mu = 1, total_band = 20MHz, RB_band = 360kHz, window = 200 slot (self-defined)
 uniform_PSD_scenario = False
 DDIM = False
 
@@ -466,7 +466,7 @@ for i in range(len(seeds)):
     '''dl_mimo'''
     if hard_scenario: dl_mimo = 3  # 原本是 64
     elif new_mimo_scenario: dl_mimo = 4
-    else: dl_mimo = 16
+    else: dl_mimo = 1
 
     '''UE_rx_gain'''
     if new_mimo_scenario: rx_gain = 1

@@ -5,6 +5,8 @@ from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from tqdm.auto import tqdm
 from pathlib import Path
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from Env.env_fixedUE import cellularEnv
 from Env.env_movingUE import EnvMove
@@ -18,14 +20,14 @@ import math
 fixed_or_not = [False]
 exps_fixed = ['exp41', 'exp42', 'exp43', 'exp44', 'exp45']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp80']
+exps_moving = ['exp84', 'exp85']
 # seeds = [124, 125, 126, 127, 128]
-seeds = [124]
+seeds = [127, 128]
 using_tanh = False
 hard_scenario = False
 new_mimo_scenario = False
-nr_oriented_scenario = False
-uniform_PSD_scenario = True
+nr_oriented_scenario = True
+uniform_PSD_scenario = False
 
 for i in range(len(seeds)):
     

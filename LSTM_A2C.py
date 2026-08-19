@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import Categorical
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from Env.env_fixedUE import cellularEnv
 from Env.env_movingUE import EnvMove
@@ -20,10 +22,10 @@ import math
 '''
 
 # seeds = [124, 125, 126, 127, 128]
-seeds = [124]
+seeds = [127, 128]
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp53']
+exps_moving = ['exp56', 'exp57']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False

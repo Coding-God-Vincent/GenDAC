@@ -49,10 +49,10 @@ import time
 
 
 # seeds = [124, 125, 126, 127, 128]
-seeds = [124]
+seeds = [125, 126, 127, 128]
 exps_fixed = ['exp40', 'exp41', 'exp42', 'exp43', 'exp44']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp53']
+exps_moving = ['exp54', 'exp55', 'exp56', 'exp57']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
