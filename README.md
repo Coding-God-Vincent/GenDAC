@@ -149,4 +149,12 @@ pip install -r reqirements.txt
 ```bash
 # Our Method
 python GenDAC.py
+# Baseline algorithms
+python GANDDQN.py
+python LSTM_A2C.py
+python Hard_Slicing.py
+python PPO.py
+python SAC.py
 ```
+
+
