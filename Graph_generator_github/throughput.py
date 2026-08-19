@@ -104,7 +104,7 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-plt.savefig(image_path / f"throughput.svg")
+plt.savefig(image_path / f"throughput.pdf")
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''SE'''
@@ -155,7 +155,7 @@ plt.legend(
     loc= 'lower right'
 ).set_zorder(10)
 
-plt.savefig(image_path / f"SE.svg")
+plt.savefig(image_path / f"SE.pdf")
 
 
 
