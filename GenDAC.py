@@ -294,7 +294,12 @@ seeds = [125, 126, 127, 128]
 '''
 new_mimo_scenario = False
 hard_scenario = False
-nr_oriented_scenario = True  # mu = 1, total_band = 20MHz, RB_band = 360kHz, window = 200 slot (self-defined)
+# mu = 1, total_band = 20MHz, RB_band = 360kHz, window = 200 slot (self-defined)
+# chan_mod = '38901_UMi_NLOS'
+# carrier_freq = 3.5 * 10 ** 9 (3.5GHz)
+# BS_height = 10.0 (m)
+# UE_height = 1.5 (m)
+nr_oriented_scenario = True  
 uniform_PSD_scenario = False
 DDIM = False
 
@@ -472,12 +477,17 @@ for i in range(len(seeds)):
     if new_mimo_scenario: rx_gain = 1
     else: rx_gain = 20
 
-    if nr_oriented_scenario: 
+    if nr_oriented_scenario:  # 5G NR scenario (TR 38.901)
         learning_windows = 200
         RB_band = 360 * 10 ** 3
-    else:
+        chan_mod = '38901_UMi_NLOS'
+        carrier_freq = 3.5 * 10 ** 9
+    else: # 4G LTE scenario (Original) TR 36.814
         learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
         RB_band = 180 * 10 ** 3
+        chan_mod = '36814'
+        carrier_freq = 2 * 10 ** 9
+        
 
 
     # J = \alpha * SE + \betas * SSRs
@@ -508,7 +518,9 @@ for i in range(len(seeds)):
         new_mimo_scenario= new_mimo_scenario,
         speed_each_slice= [3, 4, 9],
         RB_band= RB_band,
-        uniform_PSD_scenario= uniform_PSD_scenario)
+        uniform_PSD_scenario= uniform_PSD_scenario,
+        chan_mod= chan_mod,
+        carrier_freq= carrier_freq)
 
     env.countReset()  # reset 所有計數器
     if not fixed_UE: env.user_move()  # user move in LSTM-A2C env

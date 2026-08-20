@@ -39,6 +39,8 @@ class EnvMove(object):
                  noise_PSD = -204,  # -174 dbm/Hz
                  chan_mod = '36814',  # channel model : 3GPP TR 36.814 (including Path Loss & Shadow Fading)
                  carrier_freq = 2 * 10 ** 9,  # 2 GHz  # the center frequency of the utilized band
+                 BS_height = 10.0,  # unit: m, TR 38.901 Umi (5G NR-oriented scenario) (這篇論文原本沒有設定)
+                 UE_height = 1.5,  # unit: m, TR 38.901 Umi
                  time_subframe = 0.5 * 10 ** (-3),  # by LTE, 0.5 ms # unit is s
                  ser_cat = ['volte', 'embb_general', 'urllc'],
                  band_whole = 10 * 10 ** 6,  # 10MHz
@@ -54,6 +56,7 @@ class EnvMove(object):
                  RB_band = 180 * 10**3,
                  uniform_PSD_scenario= False
     ):
+        self.chan_mod = chan_mod
         self.uniform_PSD_scenario = uniform_PSD_scenario
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power
@@ -148,13 +151,63 @@ class EnvMove(object):
     # Calculating the channel loss # unit : dB 
     # output_shape : (self.UE_max_no, 1)
     def channel_model(self):
+        # ================================================================
+        # 3GPP TR 36.814: Pico-to-UE NLOS, fc = 2 GHz
+        # ================================================================
         if self.chan_mod == '36814':
-            shadowing_var = 8  # rayleigh fading shadowing variance 8dB
+            shadowing_std = 8  # rayleigh fading shadowing variance 8dB
             # dis between the BS and UE
             # np.sqrt( (x^2 - 0 + y^2 - 0) )
             dis = np.sqrt(np.sum((self.BS_pos - self.UE_pos) ** 2, axis=1)) / 1000  # unit changes to km
             self.path_loss = 145.4 + 37.5 * np.log10(dis).reshape(-1, 1)  # by 3GPP TR 36.814
-            self.chan_loss = self.path_loss + np.random.normal(0, shadowing_var, self.UE_max_no).reshape(-1, 1)
+            self.chan_loss = self.path_loss + np.random.normal(0, shadowing_std, self.UE_max_no).reshape(-1, 1)
+        # ================================================================
+        # 3GPP TR 38.901: UMi-Street Canyon NLOS
+        # For 5G NR n78, fc = 3.5 GHz
+        # ================================================================
+        elif self.chan_mod == '38901_UMi_NLOS':
+            shadowing_std = 7.82  # dB
+            # TR 38.901 uses GHz
+            fc_GHz = self.carrier_freq / 1e9
+            # 2D horizontal BS-UE distance, unit: m
+            d_2D = np.sqrt(
+                np.sum((self.BS_pos - self.UE_pos) ** 2, axis=1)
+            )
+            # TR 38.901 UMi model is applicable for d_2D >= 10 m
+            d_2D = np.maximum(d_2D, 10.0)
+            # 3D BS-UE distance
+            d_3D = np.sqrt(
+                d_2D ** 2
+                + (self.BS_height - self.UE_height) ** 2
+            )
+            # UMi LOS path loss
+            PL_LOS = (
+                32.4
+                + 21.0 * np.log10(d_3D)
+                + 20.0 * np.log10(fc_GHz)
+            )
+            # UMi NLOS candidate path loss
+            PL_NLOS_prime = (
+                22.4
+                + 35.3 * np.log10(d_3D)
+                + 21.3 * np.log10(fc_GHz)
+                - 0.3 * (self.UE_height - 1.5)
+            )
+            # TR 38.901 definition
+            self.path_loss = np.maximum(
+                PL_LOS,
+                PL_NLOS_prime
+            ).reshape(-1, 1)
+            
+            # Add log-normal shadow fading
+            # Gaussian distribution in dB domain
+            shadowing = np.random.normal(
+                0,
+                shadowing_std,
+                self.UE_max_no
+            ).reshape(-1, 1)
+
+            self.chan_loss = self.path_loss + shadowing
 
     #=======================================================================================================================================#
     # UE mobility model
