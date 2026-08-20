@@ -32,7 +32,7 @@ conda deactivate
 conda activate GenDAC_venv
 
 # Install Pytorch 2.9.1 with CUDA 12.8
-conda install pytorch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu128
+pip install torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu128
 
 # Install other dependencies
 pip install -r requirements.txt
@@ -171,15 +171,11 @@ python GenDAC.py
 
 During training, TensorBoard event files are automatically generated under:
 
-```text
-Logs_github/<algorithm>/<experiment>/tensorboard
-```
+`Logs_github/<algorithm>/<experiment>/tensorboard`
 
 For example, the TensorBoard logs of GenDAC follow the structure:
 
-```text
-Logs_github/GenDAC/<experiment>/tensorboard
-```
+`Logs_github/GenDAC/<experiment>/tensorboard`
 
 ### 5.2 Monitor Training Progress
 

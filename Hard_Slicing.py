@@ -41,7 +41,7 @@ for fixed in fixed_or_not:
         '''設定圖片 / log 路徑'''
         algo_name = 'Hard_Slicing'
         log_file = 'Logs_github' if fixed_UE == False else 'Logs_fixedUE_env'
-        log_path = Path(f"Logs/{log_file}/{algo_name}/{exp_name}/tensorboard")
+        log_path = Path(f"{log_file}/{algo_name}/{exp_name}/tensorboard")
         # generate log writer
         writer = SummaryWriter(log_dir= log_path)
 
