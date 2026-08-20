@@ -20,9 +20,9 @@ import math
 fixed_or_not = [False]
 exps_fixed = ['exp41', 'exp42', 'exp43', 'exp44', 'exp45']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp84', 'exp85']
-# seeds = [124, 125, 126, 127, 128]
-seeds = [127, 128]
+exps_moving = ['exp86', 'exp87', 'exp88', 'exp89', 'exp90']
+seeds = [124, 125, 126, 127, 128]
+# seeds = [127, 128]
 using_tanh = False
 hard_scenario = False
 new_mimo_scenario = False
@@ -226,12 +226,17 @@ for i in range(len(seeds)):
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
 
-        if nr_oriented_scenario: 
+        
+        if nr_oriented_scenario:  # 5G NR scenario (TR 38.901)
             learning_windows = 200
             RB_band = 360 * 10 ** 3
-        else: 
-            learning_windows = 2000
+            chan_mod = '38901_UMi_NLOS'
+            carrier_freq = 3.5 * 10 ** 9
+        else: # 4G LTE scenario (Original) TR 36.814
+            learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
             RB_band = 180 * 10 ** 3
+            chan_mod = '36814'
+            carrier_freq = 2 * 10 ** 9
 
         total_timesteps = 10000
         
@@ -257,7 +262,9 @@ for i in range(len(seeds)):
             new_mimo_scenario= new_mimo_scenario,
             speed_each_slice= [3, 4, 9],
             RB_band= RB_band,
-            uniform_PSD_scenario= uniform_PSD_scenario)
+            uniform_PSD_scenario= uniform_PSD_scenario,
+            chan_mod= chan_mod,
+            carrier_freq= carrier_freq)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         trajectory_length = 128  # 因為本環境沒有 terminate state，所以自己訂一個 trajectory length (batch_size 的倍數)

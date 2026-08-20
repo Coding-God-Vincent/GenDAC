@@ -26,9 +26,9 @@ import math
 
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp66', 'exp67', 'exp68', 'exp69']
+exps_moving = ['exp70', 'exp71', 'exp72', 'exp73', 'exp74']
 # seeds = [124, 125, 126, 127, 128]
-seeds = [125, 126, 127, 128]
+seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False
@@ -231,13 +231,17 @@ for i in range(len(seeds)):
         '''UE_rx_gain'''
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
-
-        if nr_oriented_scenario: 
+            
+        if nr_oriented_scenario:  # 5G NR scenario (TR 38.901)
             learning_windows = 200
             RB_band = 360 * 10 ** 3
-        else:
+            chan_mod = '38901_UMi_NLOS'
+            carrier_freq = 3.5 * 10 ** 9
+        else: # 4G LTE scenario (Original) TR 36.814
             learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
             RB_band = 180 * 10 ** 3
+            chan_mod = '36814'
+            carrier_freq = 2 * 10 ** 9
 
         total_timesteps = 10000
         UE_no = 100 if fixed_UE else 300
@@ -261,7 +265,9 @@ for i in range(len(seeds)):
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
             speed_each_slice= [3, 4, 9],
-            RB_band= RB_band)
+            RB_band= RB_band,
+            chan_mod= chan_mod,
+            carrier_freq= carrier_freq)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Setup Training Parameters'''
         batch_size = 32

@@ -57,6 +57,8 @@ class EnvMove(object):
                  uniform_PSD_scenario= False
     ):
         self.chan_mod = chan_mod
+        self.BS_height = BS_height
+        self.UE_height = UE_height
         self.uniform_PSD_scenario = uniform_PSD_scenario
         self.BS_pos = BS_pos
         self.BS_tx_power = BS_tx_power

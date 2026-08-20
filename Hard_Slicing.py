@@ -11,8 +11,8 @@ from Utils.seed import set_seed
 
 exps_fixed = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp30', 'exp31', 'exp32', 'exp33']
-seeds = [125, 126, 127, 128]
+exps_moving = ['exp34', 'exp35', 'exp36', 'exp37', 'exp38']
+seeds = [124, 125, 126, 127, 128]
 # seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False
@@ -81,12 +81,16 @@ for fixed in fixed_or_not:
         if new_mimo_scenario: rx_gain = 1
         else: rx_gain = 20
 
-        if nr_oriented_scenario: 
+        if nr_oriented_scenario:  # 5G NR scenario (TR 38.901)
             learning_windows = 200
             RB_band = 360 * 10 ** 3
-        else:
+            chan_mod = '38901_UMi_NLOS'
+            carrier_freq = 3.5 * 10 ** 9
+        else: # 4G LTE scenario (Original) TR 36.814
             learning_windows = 2000  # 1 learning window (episode) = 2000 timeslots
             RB_band = 180 * 10 ** 3
+            chan_mod = '36814'
+            carrier_freq = 2 * 10 ** 9
 
         band_per = 0.2  # Granularitiy (unit : MHz)
         total_timesteps = 10000
@@ -113,7 +117,9 @@ for fixed in fixed_or_not:
             hard_scenario= hard_scenario,
             new_mimo_scenario= new_mimo_scenario,
             speed_each_slice= [3, 4, 9],
-            RB_band= RB_band)
+            RB_band= RB_band,
+            chan_mod= chan_mod,
+            carrier_freq= carrier_freq)
         #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
         '''Recording list'''
         QoEs = []
