@@ -67,6 +67,8 @@ means_across_algos = []
 stds_across_algos = []
 
 image_path = Path(f"{Figure}/denoise_step")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 
 for label in labels:
     # calculate median & q1 & q3 of each algo

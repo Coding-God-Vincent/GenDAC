@@ -29,6 +29,8 @@ Figure = "Test_Figures"
 
 csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[0]}"
 image_path = Path(f"{Figure}/proportion")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 
 algo_name1 = "GenDAC"
 algo_name2 = "GANDDQN"

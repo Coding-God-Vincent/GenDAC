@@ -46,6 +46,8 @@ steps = np.arange(9801)
 means_across_algos = []
 stds_across_algos = []
 image_path = Path(f"{Figure}/GenDAC_MlpAC")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 
 # calculate std & mean of each algo
 for i, algo_name in enumerate(algo_names):

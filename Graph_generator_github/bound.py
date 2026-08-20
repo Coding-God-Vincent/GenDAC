@@ -56,6 +56,8 @@ alphas = [0.15, 0.15, 0.15, 0.15, 0.15, 0.15]
 linewidths = [1, 1, 1, 1, 1, 1]
 
 image_path = Path(f"{Figure}/bound")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Utility'''
 

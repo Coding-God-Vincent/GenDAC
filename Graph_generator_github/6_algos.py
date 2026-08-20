@@ -55,6 +55,8 @@ linewidths = [1.8, 1, 1, 1, 1, 1]
 alphas = [0.12, 0.08, 0.08, 0.08, 0.08, 0.08]
 
 image_path = Path(f"{Figure}/6_algos")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Utility'''

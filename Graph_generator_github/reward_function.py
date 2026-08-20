@@ -54,6 +54,8 @@ linewidths = [1, 1, 1, 1]
 
 
 image_path = Path(f"{Figure}/reward_function")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Utility'''
 

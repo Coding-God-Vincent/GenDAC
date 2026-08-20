@@ -55,6 +55,8 @@ seeds = [124, 125, 126, 127, 128]
 linewidth = 1
 Figure = "Test_Figures"
 image_path = Path(f"{Figure}/lambda")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 
 
 # 7 algos

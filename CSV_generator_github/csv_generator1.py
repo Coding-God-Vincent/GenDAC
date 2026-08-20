@@ -28,7 +28,12 @@ def generate_EA(event_path):
 # file_path : 要存所有 .csv 檔的位址 (還沒分演算法)
 def generate_original_csv_path(algo_name, file_path):
     algo_csv = algo_name + '_csv'
-    return file_path / algo_csv
+    original_csv_path = file_path / algo_csv
+
+    # Automatically create the output directory if it does not exist
+    original_csv_path.mkdir(parents=True, exist_ok=True)
+
+    return original_csv_path
 
 
 # generate csv files to the target path
@@ -98,7 +103,7 @@ for fixed in fixed_or_not:
     # else: algo_name = algo_names[1]
     for i in range(len(seeds)):
         print(f"processing: fixed= {fixed}, exps= {seeds[i]}")
-        file_path = Path('Outcome_github/CSVs') / f"seed_{seeds[i]}"
+        file_path = Path('Outcome_github/CSVs_new') / f"seed_{seeds[i]}"
 
         '''*****algo1 : GenDAC'''
         # 想將 tensorboard 中的 event 內容轉成各個 csv 檔後放在 : /home/super_trumpet/NCKU/Paper/My Methodology/Outcome/Combine/D2AC_csv 中

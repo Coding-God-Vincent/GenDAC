@@ -57,6 +57,8 @@ alphas = [0.12, 0.08, 0.08, 0.08, 0.08, 0.08]
 
 
 image_path = Path(f"{Figure}/nr_oriented")
+# Automatically create the output directory if it does not exist
+image_path.mkdir(parents=True, exist_ok=True)
 #--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------#
 '''Utility'''
 
