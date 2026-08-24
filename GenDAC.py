@@ -282,8 +282,8 @@ def cal_reward(qoe, se, qoe_weights, se_weight, SLA_threshold= 0.95, reward_clip
 fixed_UE = False
 # exps = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
 # seeds = [124, 125, 126, 127, 128]
-exps = ['exp540', 'exp541', 'exp542', 'exp543', 'exp544']
-seeds = [124, 125, 126, 127, 128]
+exps = ['exp540']
+seeds = [124]
 
 
 '''new_mimo_scenario 的改變有 (receiver_antennas = 4, transmitter_antennas = 64)

@@ -21,11 +21,11 @@ import math
 收斂的部分 Gemini 說是因為模型初始化的方式不同。舊版 tf 是用 Xavier Uniform，Pytorch 則是用 Kaming Uniform。
 '''
 
-seeds = [124, 125, 126, 127, 128]
+seeds = [124]
 # seeds = [127, 128]
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp58', 'exp59', 'exp60', 'exp61', 'exp62']
+exps_moving = ['exp58']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False

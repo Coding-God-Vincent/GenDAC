@@ -18,8 +18,8 @@ from Utils.MlpAC_utils.Model import GaussianActor, DoubleCritic
 from Utils.MlpAC_utils.MlpAC_opt import MlpAC_opt
 
 exps_fixed = ['exp32', 'exp33', 'exp34', 'exp35', 'exp36']
-exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-seeds = [124, 125, 126, 127, 128]
+exps_moving = ['exp1']
+seeds = [124]
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = True

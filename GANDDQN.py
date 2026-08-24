@@ -48,11 +48,11 @@ from pathlib import Path
 import time
 
 
-seeds = [124, 125, 126, 127, 128]
+seeds = [124]
 # seeds = [125, 126, 127, 128]
 exps_fixed = ['exp40', 'exp41', 'exp42', 'exp43', 'exp44']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp58', 'exp59', 'exp60', 'exp61', 'exp62']
+exps_moving = ['exp58']
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False

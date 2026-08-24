@@ -11,8 +11,8 @@ from Utils.seed import set_seed
 
 exps_fixed = ['exp24', 'exp25', 'exp26', 'exp27', 'exp28']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp34', 'exp35', 'exp36', 'exp37', 'exp38']
-seeds = [124, 125, 126, 127, 128]
+exps_moving = ['exp34']
+seeds = [124]
 # seeds = [124, 125, 126, 127, 128]
 fixed_or_not = [False]
 hard_scenario = False

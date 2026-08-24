@@ -26,9 +26,9 @@ import math
 
 exps_fixed = ['exp37', 'exp38', 'exp39', 'exp40', 'exp41']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp70', 'exp71', 'exp72', 'exp73', 'exp74']
+exps_moving = ['exp70']
 # seeds = [124, 125, 126, 127, 128]
-seeds = [124, 125, 126, 127, 128]
+seeds = [124]
 fixed_or_not = [False]
 hard_scenario = False
 new_mimo_scenario = False

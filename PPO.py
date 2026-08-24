@@ -20,8 +20,8 @@ import math
 fixed_or_not = [False]
 exps_fixed = ['exp41', 'exp42', 'exp43', 'exp44', 'exp45']
 # exps_moving = ['exp1', 'exp2', 'exp3', 'exp4', 'exp5']
-exps_moving = ['exp86', 'exp87', 'exp88', 'exp89', 'exp90']
-seeds = [124, 125, 126, 127, 128]
+exps_moving = ['exp86']
+seeds = [124]
 # seeds = [127, 128]
 using_tanh = False
 hard_scenario = False
