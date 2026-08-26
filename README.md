@@ -163,25 +163,20 @@ pip install -r requirements.txt
 
 ## 4. Usage Examples
 
-Before running a training script, configure both the experiment names and the random seeds used for the training runs.
+Since the configuration procedure is the same for all algorithms, `GenDAC.py` is used as an example in this section.
 
-For example:
+### 4.1 Configure Experiment Names and Random Seeds
 
-```python
-exps = ['exp1', 'exp2', 'exp3']
-seeds = [124, 125, 126]
-```
+In `GenDAC.py`, replace **Lines 285–286** with the desired experiment names and random seeds.
 
-Each experiment name in `exps` corresponds to the random seed at the same position in `seeds`. Therefore, the two lists should have the same length.
-
-For example:
+For example, to run three independent experiments, replace Lines 285–286 with:
 
 ```python
 exps = ['exp1', 'exp2', 'exp3']
 seeds = [124, 125, 126]
 ```
 
-corresponds to:
+Each experiment name in `exps` corresponds to the random seed at the same position in `seeds`:
 
 ```text
 exp1 → seed 124
@@ -189,25 +184,59 @@ exp2 → seed 125
 exp3 → seed 126
 ```
 
-The number of independent training runs can therefore be controlled by changing the number of entries in `exps` and `seeds`.
-
-For example, to run only one seed:
+To run only one experiment, replace Lines 285–286 with:
 
 ```python
 exps = ['exp1']
 seeds = [124]
 ```
 
-or to run three seeds:
+Make sure that `exps` and `seeds` have the same number of entries.
+
+For the baseline algorithms, modify the corresponding lines shown below:
+
+| Algorithm | Experiment Name | Random Seed |
+|---|---:|---:|
+| `GenDAC.py` | Line 285 | Line 286 |
+| `GANDDQN.py` | Line 55 | Line 51 |
+| `LSTM_A2C.py` | Line 28 | Line 24 |
+| `PPO.py` | Line 23 | Line 24 |
+| `SAC.py` | Line 29 | Line 31 |
+| `Hard_Slicing.py` | Line 14 | Line 15 |
+
+
+### 4.2 Configure the Network Scenario
+
+The environment file used in this study is `Env/env_movingUE.py`, which provides two network scenarios: the **4G LTE scenario** and the **5G NR scenario**. For the main differences between the two scenarios, please refer to [Scenario Comparison](URL).
+
+For `GenDAC.py`, modify **Line 302**:
 
 ```python
-exps = ['exp1', 'exp2', 'exp3']
-seeds = [124, 125, 126]
+nr_oriented_scenario = False
 ```
 
-Make sure that each experiment name is unique so that the generated TensorBoard logs and figures from different runs can be stored separately.
+uses the **4G LTE scenario**, while:
 
-After configuring `exps`, `seeds`, and other experiment-specific settings, run the desired algorithm from the project root directory:
+```python
+nr_oriented_scenario = True
+```
+
+uses the **5G NR scenario**.
+
+For the baseline algorithms, modify the corresponding line shown below:
+
+| Algorithm | `nr_oriented_scenario` |
+|---|---:|
+| `GenDAC.py` | Line 302 |
+| `GANDDQN.py` | Line 59 |
+| `LSTM_A2C.py` | Line 32 |
+| `PPO.py` | Line 29 |
+| `SAC.py` | Line 36 |
+| `Hard_Slicing.py` | Line 20 |
+
+
+
+After configuring `exps`, `seeds`, and `nr_oriented_scenario` settings, run the desired algorithm from the project root directory:
 
 ```bash
 # Our Method
@@ -352,30 +381,28 @@ Note that:
 
 ### 6.1 Configure the CSV Export
 
-Before running the script, specify the TensorBoard metrics to be exported in `target_tags`.
+Before running `CSV_generator_github/csv_generator1.py`, specify the TensorBoard metrics to be exported.
+
+In `CSV_generator_github/csv_generator1.py`, replace **Line 77** with the desired TensorBoard scalar tags.
 
 For example:
 
 ```python
-target_tags = [
-    'qoe/volte',
-    'qoe/embb_general',
-    'qoe/urllc',
-    'se',
-    'utility',
-    'action/volte',
-    'action/embb_general',
-    'action/urllc',
-    'throughput'
-]
+target_tags = ['qoe/volte', 'qoe/embb_general', 'qoe/urllc', 'se', 'utility', 'action/volte', 'action/embb_general', 'action/urllc', 'throughput']
 ```
 
-Then specify the random seed and the name of the experiment:
+Each tag corresponds to a scalar recorded in the TensorBoard event file. Only the metrics included in `target_tags` will be exported to CSV files.
+
+Next, configure the random seed and the experiment name by replacing **Lines 90–91**.
+
+For example:
 
 ```python
 seeds = [124]
 algo_name = "Test_GenDAC"
 ```
+
+The value of `algo_name` is used as the name of the output CSV directory.
 
 The generated CSV files follow the directory structure:
 
@@ -383,17 +410,37 @@ The generated CSV files follow the directory structure:
 Outcome_github/CSVs_new/seed_<seed>/<algo_name>_csv/
 ```
 
-For example:
+For example, with:
+
+```python
+seeds = [124]
+algo_name = "Test_GenDAC"
+```
+
+the generated CSV files are stored under:
 
 ```text
 Outcome_github/CSVs_new/seed_124/Test_GenDAC_csv/
 ```
 
-The output directories are automatically created if they do not already exist. Therefore, `CSVs_new/`, `seed_<seed>/`, and `<algo_name>_csv/` do not need to be created manually.
+The output directories are created automatically if they do not already exist. Therefore, `CSVs_new/`, `seed_<seed>/`, and `<algo_name>_csv/` do not need to be created manually.
+
+If multiple experiments are exported at the same time, replace **Lines 90–91** accordingly.
+
+For example:
+
+```python
+seeds = [124, 125, 126]
+algo_name = "Test_GenDAC"
+```
+
+The number and order of entries in `seeds` must be consistent with the TensorBoard event file paths specified in `event_path_moving`, as described in Section 6.2.
 
 ### 6.2 Specify the TensorBoard Event File
 
-Set `event_path_moving` to the path of the TensorBoard event file generated by the corresponding training experiment.
+The TensorBoard event files to be exported are specified using `event_path_moving`.
+
+In `CSV_generator_github/csv_generator1.py`, replace **Lines 94–97** with the path of the TensorBoard event file generated by the corresponding training experiment.
 
 TensorBoard event files generated during training can be found under:
 
@@ -413,11 +460,9 @@ Inside the corresponding `tensorboard/` directory, locate the TensorBoard event 
 events.out.tfevents
 ```
 
-Copy the path of this event file and assign it to `event_path_moving`. The TensorBoard event file itself does not need to be moved, copied, or replaced.
+Copy the path of this event file and assign it to `event_path_moving`. The TensorBoard event file itself does not need to be moved, copied, or replaced. (Both **relative paths** and **absolute paths** can be used.)
 
-Both **relative paths** and **absolute paths** can be used.
-
-For example, using a relative path from the project root directory:
+For example, replace **Lines 94–97** with the following when using a relative path from the project root directory:
 
 ```python
 event_path_moving = [
@@ -425,7 +470,7 @@ event_path_moving = [
 ]
 ```
 
-Alternatively, an absolute path can also be used:
+Alternatively, an absolute path can be used:
 
 ```python
 event_path_moving = [
@@ -437,11 +482,16 @@ When using a relative path, the path should be relative to the directory from wh
 
 If multiple seeds or experiments are exported at the same time, specify the corresponding TensorBoard event file paths in `event_path_moving` in the same order as the entries in `seeds`.
 
-For example:
+For example, replace **Lines 90–91** with:
 
 ```python
 seeds = [124, 125, 126]
+algo_name = "Test_GenDAC"
+```
 
+and replace **Lines 94–97** with:
+
+```python
 event_path_moving = [
     'Logs_github/GenDAC/exp1/tensorboard/events.out.tfevents...',
     'Logs_github/GenDAC/exp2/tensorboard/events.out.tfevents...',
@@ -449,7 +499,15 @@ event_path_moving = [
 ]
 ```
 
-In this example, the first TensorBoard event file corresponds to seed `124`, the second to seed `125`, and the third to seed `126`.
+In this example:
+
+```text
+seed 124 → exp1 TensorBoard event file
+seed 125 → exp2 TensorBoard event file
+seed 126 → exp3 TensorBoard event file
+```
+
+Therefore, the number of entries in `seeds` and `event_path_moving` must be the same, and their order must correspond to each other.
 
 ### 6.3 Generate the CSV Files
 
@@ -505,7 +563,11 @@ generates the main comparison figures for GenDAC, GAN-DDQN, LSTM-A2C, Hard Slici
 
 The figure-generation scripts specify the algorithm names, random seeds, CSV paths, and other experiment-specific parameters.
 
-For example, `6_algos.py` contains:
+This section uses `Graph_generator_github/6_algos.py` as an example.
+
+#### Configure the Algorithm Names
+
+In `Graph_generator_github/6_algos.py`, **Lines 41–46** specify the names of the algorithms whose CSV directories will be loaded:
 
 ```python
 algo_name1 = "GenDAC"
@@ -514,17 +576,79 @@ algo_name3 = "LSTM_A2C"
 algo_name4 = "Hard_Slicing"
 algo_name5 = "PPO"
 algo_name6 = "SAC"
+```
 
+These names must match the corresponding `<algo_name>_csv` directory names.
+
+For example, if the CSV files of GenDAC are stored under:
+
+```text
+Outcome_github/CSVs_new/seed_124/Test_GenDAC_csv/
+```
+
+replace **Line 41** with:
+
+```python
+algo_name1 = "Test_GenDAC"
+```
+
+The remaining algorithm names in **Lines 42–46** should be modified in the same way when necessary.
+
+The legend labels displayed in the generated figures are defined in **Line 49**:
+
+```python
+labels = ["GenDAC", "GAN-DDQN", "LSTM-A2C", "Hard Slicing", "PPO", "SAC"]
+```
+
+Modify this line only if different names should be displayed in the figure legends.
+
+#### Configure the Random Seeds
+
+The random seeds used to load the experimental results are specified in **Line 51**:
+
+```python
 seeds = [124, 125, 126, 127, 128]
 ```
 
-The current scripts in `Graph_generator_github/` are configured to read CSV files from:
+Replace **Line 51** with the seeds corresponding to the CSV results to be processed.
+
+For example, to generate figures using only seed `124`:
+
+```python
+seeds = [124]
+```
+
+The specified seeds must correspond to the available directories:
+
+```text
+Outcome_github/CSVs/seed_<seed>/
+```
+
+or:
+
+```text
+Outcome_github/CSVs_new/seed_<seed>/
+```
+
+depending on the configured CSV input path.
+
+#### Configure the CSV Input Path
+
+The current `6_algos.py` is configured to read the experimental CSV files used to generate the figures reported in the thesis from:
 
 ```text
 Outcome_github/CSVs/
 ```
 
-For example, `6_algos.py` uses:
+The CSV input path is specified separately for Utility, SE, and SSR. In `6_algos.py`, the corresponding paths are located at:
+
+```text
+Line 74  → System Utility
+Line 125 → Spectral Efficiency (SE)
+Line 186 → Slice Satisfaction Rate (SSR)
+```
+
+The current setting at each of these lines is:
 
 ```python
 csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
@@ -532,69 +656,98 @@ csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
 
 The CSV files stored in `Outcome_github/CSVs/` are the experimental results used to generate the figures reported in the thesis.
 
-Therefore, the current settings in `Graph_generator_github/` are mainly configured for reproducing the thesis figures.
-
-If you run new experiments and export their TensorBoard results using `CSV_generator_github/csv_generator1.py`, the newly generated CSV files are stored under:
+If new experiments are executed and their TensorBoard results are exported using `CSV_generator_github/csv_generator1.py`, the newly generated CSV files are stored under:
 
 ```text
 Outcome_github/CSVs_new/
 ```
 
-To generate figures using newly obtained experimental results, modify the CSV input path in the corresponding figure-generation script.
-
-For example, change:
-
-```python
-csv_path = Path("Outcome_github/CSVs") / f"seed_{seeds[j]}"
-```
-
-to:
+To generate figures using these newly generated experimental results, replace **Lines 74, 125, and 186** with:
 
 ```python
 csv_path = Path("Outcome_github/CSVs_new") / f"seed_{seeds[j]}"
 ```
 
-The algorithm names and random seeds should also be modified to match the newly generated CSV directories.
+All three lines must be modified so that Utility, SE, and SSR are loaded from the same CSV directory.
 
-For example, if the CSV generator uses:
+For example, suppose the CSV generator is configured as:
 
 ```python
 seeds = [124]
 algo_name = "Test_GenDAC"
 ```
 
-the generated CSV files are stored under:
+and the generated files are stored under:
 
 ```text
 Outcome_github/CSVs_new/seed_124/Test_GenDAC_csv/
 ```
 
-The corresponding algorithm name and seed configuration in the figure-generation script should therefore be adjusted accordingly.
+Then configure `6_algos.py` as follows:
 
-> **Note:** The CSV paths, algorithm names, random seeds, smoothing parameters, and other experiment-specific settings currently defined in `Graph_generator_github/` are configured for the experimental results used in the thesis. When generating figures from newly obtained experimental results, modify these settings according to your experiment.
+Replace **Line 41** with:
+
+```python
+algo_name1 = "Test_GenDAC"
+```
+
+Replace **Line 51** with:
+
+```python
+seeds = [124]
+```
+
+Replace **Lines 74, 125, and 186** with:
+
+```python
+csv_path = Path("Outcome_github/CSVs_new") / f"seed_{seeds[j]}"
+```
+
+The algorithm names, seeds, and CSV input paths must be consistent with the directories generated by `CSV_generator_github/csv_generator1.py`.
+
+> **Note:** The algorithm names, random seeds, CSV paths and other experiment-specific settings currently defined in `Graph_generator_github/` are configured for the experimental results used in the thesis. When generating figures from newly obtained experimental results, modify these settings according to the corresponding experiment.
 
 ### 7.2 Configure the Figure Output
 
 The generated figures are stored separately from the final thesis figures.
 
-For example, `6_algos.py` defines:
+In `Graph_generator_github/6_algos.py`, the root directory for newly generated figures is specified in **Line 39**:
 
 ```python
 Figure = "Test_Figures"
-
-image_path = Path(f"{Figure}/6_algos")
-image_path.mkdir(parents=True, exist_ok=True)
 ```
 
-Therefore, the figures generated by `6_algos.py` are stored under:
+The subdirectory for the six-algorithm comparison is specified in **Line 57**:
+
+```python
+image_path = Path(f"{Figure}/6_algos")
+```
+
+Therefore, with the default settings, the generated figures are stored under:
 
 ```text
 Test_Figures/6_algos/
 ```
 
-The output directory is automatically created if it does not already exist. Therefore, `Test_Figures/` and its corresponding experiment subdirectory do not need to be created manually.
+The output directory is automatically created by the script if it does not already exist. Therefore, `Test_Figures/` and `Test_Figures/6_algos/` do not need to be created manually.
 
-Other scripts in `Graph_generator_github/` use the same general workflow and generate figures under their corresponding directories.
+To change the root output directory, replace **Line 39**.
+
+For example:
+
+```python
+Figure = "My_Figures"
+```
+
+To change the experiment-specific subdirectory, replace **Line 57**.
+
+For example:
+
+```python
+image_path = Path(f"{Figure}/My_Experiment")
+```
+
+Other scripts in `Graph_generator_github/` follow the same general workflow and generate figures under their corresponding experiment directories.
 
 For example:
 
