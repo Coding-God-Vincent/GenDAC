@@ -475,4 +475,3 @@ for fixed in fixed_or_not:
         # plt.savefig("/home/super_trumpet/NCKU/Paper/My Methodology/Outcome/D2AC/Losses.png")
 
         print("Graph Saved")
-
