@@ -530,7 +530,7 @@ seeds = [124, 125, 126, 127, 128]
 algo_name = "GenDAC"
 ```
 
-and specify the corresponding TensorBoard event files in the same order:
+and specify the corresponding TensorBoard event files in the same order by replacing **Lines 94–97**:
 
 ```python
 event_path_moving = [
@@ -540,6 +540,7 @@ event_path_moving = [
     'Logs_github/GenDAC/exp4/tensorboard/events.out.tfevents...',
     'Logs_github/GenDAC/exp5/tensorboard/events.out.tfevents...'
 ]
+
 ```
 
 Both relative paths and absolute paths can be used. When using relative paths, the paths should be relative to the directory from which the CSV generator is executed. In the examples in this README, `csv_generator1.py` is executed from the project root directory.
@@ -1482,7 +1483,22 @@ The default random seeds are:
 seeds = [124, 125, 126, 127, 128]
 ```
 
-Therefore, the scripts read the corresponding result directories under:
+If different random seeds are used, replace the values in `seeds` with the corresponding seed numbers. 
+For example, if the experimental results are generated using seeds `200`, `201`, and `202`, configure:
+
+```python
+seeds = [200, 201, 202]
+```
+
+and make sure that the corresponding CSV directories exist:
+
+```text
+Outcome_github/CSVs/seed_200/
+Outcome_github/CSVs/seed_201/
+Outcome_github/CSVs/seed_202/
+```
+
+With the default settings, the scripts read the corresponding result directories under:
 
 ```text
 Outcome_github/CSVs/seed_124/
