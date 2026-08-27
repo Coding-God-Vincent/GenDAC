@@ -62,6 +62,10 @@ pip install -r requirements.txt
 │   ├── throughput.py                 # Compare system throughput and spectral efficiency
 │   └── w_wo_rec.py                   # Compare GenDAC with and without reconstruction loss
 │
+├── Table_generator_github/           # Scripts for calculating numerical values used in thesis tables
+│   ├── table_generator1.py           # Calculate steady-state Utility, SE, and per-slice SSR statistics
+│   └── table_generator2.py           # Calculate SLA Feasible Ratio (SFR) statistics
+│
 ├── Logs_github/                      # TensorBoard logs generated during experiments
 │   └── <algorithm>/                  # Algorithm name, e.g., GenDAC, PPO, SAC, etc.
 │       └── exp*/                     # Individual experiment
@@ -1433,4 +1437,266 @@ The generated figures are automatically stored under:
 Test_Figures/bound/
 ```
 
+## 10. Generate Table Values
+
+The scripts in `Table_generator_github/` are used to calculate the numerical values reported in the performance tables of the thesis.
+
+Two scripts are provided:
+
+```text
+Table_generator_github/
+├── table_generator1.py
+└── table_generator2.py
+```
+
+`table_generator1.py` calculates the steady-state performance of each selected algorithm, including:
+
+- System Utility
+- Spectral Efficiency (SE)
+- eMBB SSR
+- URLLC SSR
+- VoLTE SSR
+
+`table_generator2.py` calculates the SFR (SLA Feasible Ratio), where a decision window is considered feasible only when the SSRs of all three slices are greater than or equal to the SLA threshold of `0.95`.
+
+> **Note:** These scripts do not generate a complete formatted table. They only calculate and print the numerical values to the terminal. The printed values must be manually copied into the corresponding table.
+
+The same two scripts are used to generate the numerical results for both:
+
+- **Table 5:** Steady-state Performance and SFR of each algorithm.
+- **Table 6:** Steady-state Performance and SFR under different warm-up transition multiplier.
+
+The only difference between generating the values for Table 5 and Table 6 is the `algo_names` setting in both table-generator scripts.
+
+### 10.1 CSV Files Used by the Table Generators
+
+Both table generators read the experimental results from:
+
+```text
+Outcome_github/CSVs/
+```
+
+The default random seeds are:
+
+```python
+seeds = [124, 125, 126, 127, 128]
+```
+
+Therefore, the scripts read the corresponding result directories under:
+
+```text
+Outcome_github/CSVs/seed_124/
+Outcome_github/CSVs/seed_125/
+Outcome_github/CSVs/seed_126/
+Outcome_github/CSVs/seed_127/
+Outcome_github/CSVs/seed_128/
+```
+
+#### CSV Files Used by `table_generator1.py`
+
+`table_generator1.py` reads the following five CSV files from each algorithm directory:
+
+| CSV File | Metric |
+|---|---|
+| `utility.csv` | System Utility |
+| `se.csv` | Spectral Efficiency |
+| `qoe_embb_general.csv` | eMBB SSR |
+| `qoe_urllc.csv` | URLLC SSR |
+| `qoe_volte.csv` | VoLTE SSR |
+
+For example:
+
+```text
+Outcome_github/CSVs/seed_124/GenDAC_csv/
+├── utility.csv
+├── se.csv
+├── qoe_embb_general.csv
+├── qoe_urllc.csv
+└── qoe_volte.csv
+```
+
+For each metric, the script first applies a moving average with a window size of `200` and then uses the last `1000` values as the steady-state region.
+
+The corresponding setting is:
+
+```python
+length = -1000
+```
+
+The script then reports the mean and standard deviation across the selected random seeds.
+
+#### CSV Files Used by `table_generator2.py`
+
+`table_generator2.py` calculates SFR using the following three SSR files:
+
+| CSV File | Metric |
+|---|---|
+| `qoe_embb_general.csv` | eMBB SSR |
+| `qoe_urllc.csv` | URLLC SSR |
+| `qoe_volte.csv` | VoLTE SSR |
+
+For example:
+
+```text
+Outcome_github/CSVs/seed_124/GenDAC_csv/
+├── qoe_embb_general.csv
+├── qoe_urllc.csv
+└── qoe_volte.csv
+```
+
+The SLA threshold is specified as:
+
+```python
+threshold = 0.95
+```
+
+Unlike the steady-state calculations in `table_generator1.py`, the SFR is calculated directly from the raw SSR values without applying a moving average.
+
+For each random seed, a decision window is counted as feasible only when:
+
+```text
+eMBB SSR  >= 0.95
+URLLC SSR >= 0.95
+VoLTE SSR >= 0.95
+```
+
+The SFR is the proportion of feasible decision windows, and the script reports its mean and standard deviation across the selected random seeds.
+
+### 10.2 Generate the Values for Table 5
+
+Table 5 reports the steady-state performance and SFR of the six algorithms:
+
+```text
+GenDAC
+GAN-DDQN
+LSTM-A2C
+Hard Slicing
+PPO
+SAC
+```
+
+The corresponding CSV directories under each `seed_<seed>/` directory are:
+
+```text
+GenDAC_csv/
+GANDDQN_csv/
+LSTM_A2C_csv/
+Hard_Slicing_csv/
+PPO_csv/
+SAC_csv/
+```
+
+For example:
+
+```text
+Outcome_github/CSVs/seed_124/
+├── GenDAC_csv/
+├── GANDDQN_csv/
+├── LSTM_A2C_csv/
+├── Hard_Slicing_csv/
+├── PPO_csv/
+└── SAC_csv/
+```
+
+To generate the values for Table 5, configure `algo_names` in both table-generator scripts as:
+
+```python
+algo_names = ["GenDAC", "GANDDQN", "LSTM_A2C", "Hard_Slicing", "PPO", "SAC"]
+```
+
+In `Table_generator_github/table_generator1.py`, replace **Lines 74–75** with:
+
+```python
+algo_names = ["GenDAC", "GANDDQN", "LSTM_A2C", "Hard_Slicing", "PPO", "SAC"]
+# algo_names = ["GenDAC_bs_1", "GenDAC", "GenDAC_bs_5"]
+```
+
+In `Table_generator_github/table_generator2.py`, replace **Lines 66–67** with:
+
+```python
+algo_names = ["GenDAC", "GANDDQN", "LSTM_A2C", "Hard_Slicing", "PPO", "SAC"]
+# algo_names = ["GenDAC_bs_1", "GenDAC", "GenDAC_bs_5"]
+```
+
+Then run:
+
+```bash
+python Table_generator_github/table_generator1.py
+```
+
+to obtain the steady-state values of:
+
+```text
+Utility
+SE
+eMBB SSR
+URLLC SSR
+VoLTE SSR
+```
+
+Next, run:
+
+```bash
+python Table_generator_github/table_generator2.py
+```
+
+to obtain the SFR values.
+
+The numerical results printed by these two scripts correspond to the values required for Table 5. The scripts do not generate the complete Table 5 automatically; the printed values must be manually entered into the table.
+
+### 10.3 Generate the Values for Table 6
+
+Table 6 evaluates different warm-up hyperparameter settings.
+
+The corresponding experimental results are stored under:
+
+```text
+GenDAC_bs_1_csv/  # warm-up hyperparameter = 1
+GenDAC_csv/       # warm-up hyperparameter = 3
+GenDAC_bs_5_csv/  # warm-up hyperparameter = 5
+```
+
+For example:
+
+```text
+Outcome_github/CSVs/seed_124/
+├── GenDAC_bs_1_csv/
+├── GenDAC_csv/
+└── GenDAC_bs_5_csv/
+```
+
+To generate the values for Table 6, configure `algo_names` in both table-generator scripts as:
+
+```python
+algo_names = ["GenDAC_bs_1", "GenDAC", "GenDAC_bs_5"]
+```
+
+In `Table_generator_github/table_generator1.py`, replace **Lines 74–75** with:
+
+```python
+# algo_names = ["GenDAC", "GANDDQN", "LSTM_A2C", "Hard_Slicing", "PPO", "SAC"]
+algo_names = ["GenDAC_bs_1", "GenDAC", "GenDAC_bs_5"]
+```
+
+In `Table_generator_github/table_generator2.py`, replace **Lines 74–75** with:
+
+```python
+# algo_names = ["GenDAC", "GANDDQN", "LSTM_A2C", "Hard_Slicing", "PPO", "SAC"]
+algo_names = ["GenDAC_bs_1", "GenDAC", "GenDAC_bs_5"]
+```
+
+No other modification to the table-generation procedure is required.
+
+Then run:
+
+```bash
+python Table_generator_github/table_generator1.py
+python Table_generator_github/table_generator2.py
+```
+
+`table_generator1.py` prints the steady-state Utility, SE, and SSR statistics, while `table_generator2.py` prints the corresponding SFR statistics for the three warm-up settings.
+
+These printed values are used to construct Table 6 manually.
+
+> **Note:** Switching between Table 5 and Table 6 only requires changing `algo_names` in both `table_generator1.py` and `table_generator2.py`. The CSV root path, random seeds, metric files, and calculation procedure remain unchanged.
 
